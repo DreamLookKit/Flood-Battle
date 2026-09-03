@@ -4,11 +4,13 @@ public class PlayerSensors : MonoBehaviour
 {
     [Header("Detection Settings")]
     [SerializeField] private LayerMask groundLayer;     // Маска слоя Ground
+    [SerializeField] private LayerMask raftLayer;     // Маска слоя Ground
+    [SerializeField] private LayerMask objectLayer;     // Маска слоя Ground
     [SerializeField] private LayerMask waterLayer;      // Маска слоя Water
-    [SerializeField] private LayerMask detectionMask;   // Маска слоев (Земля, Вода, Raft)
+    [SerializeField] private LayerMask detectionMask;   // Маска слоев (Земля, Плот, Объекто, Вода)
     [SerializeField] private float detectionRadius = 0.2f; // Радиус сферы детекции под ногами
     [SerializeField] private float landingDistance = 1.7f; // Дистанция до земли для срабатывания анимации приземления
-    public enum PlayerState { Nothing, Ground, Water} 
+    public enum PlayerState { Nothing, Raft, Object, Ground, Water} 
     public PlayerState CurrentPlayerChest { get; private set; } = PlayerState.Nothing;
     public PlayerState LastPlayerChest { get; private set; } = PlayerState.Nothing;
     public PlayerState CurrentPlayerLegs { get; private set; } = PlayerState.Nothing;
@@ -21,7 +23,7 @@ public class PlayerSensors : MonoBehaviour
     private Transform chestBone;
     private readonly Collider[] hitCollidersChest = new Collider[4]; 
     private readonly Collider[] hitCollidersLegs = new Collider[4];
-    private readonly RaycastHit[] hitCollidersLanding = new RaycastHit[4];   
+    private readonly RaycastHit[] hitCollidersLanding = new RaycastHit[32];   
     // ОБЪЯВЛЕНИЕ: Создаем ячейки для хранения числовых ID.
     // readonly означает, что мы запишем туда число один раз и никто его случайно не изменит.
     // static экономит память — эти ID будут общими для всех копий скрипта.
@@ -84,26 +86,28 @@ public class PlayerSensors : MonoBehaviour
             LastPlayerLegs = CurrentPlayerLegs;
         }
         // 3. Находим землю под ногами игрока для анимации приземления
-        int capsuleCastLanding = Physics.CapsuleCastNonAlloc(
-            GetPlayerLegs(2.0f), GetPlayerLegs(0.3f), 0.3f,
-            Vector3.down, hitCollidersLanding, landingDistance, groundLayer);
-        float minDistance = float.MaxValue;
-        for(int i = 0; i < capsuleCastLanding; i++){
-            RaycastHit hit = hitCollidersLanding[i];
-            if (hit.distance < minDistance) minDistance = hit.distance;
-        }
-        if (minDistance < landingDistance && rb.linearVelocity.y < -3f)
-            CurrentPlayerBelowLegs = PlayerState.Water;
-        else
-            CurrentPlayerBelowLegs = PlayerState.Nothing;
+        int sphereCastLanding = Physics.SphereCastNonAlloc(
+            GetPlayerLegs(), detectionRadius, Vector3.down, hitCollidersLanding, landingDistance, detectionMask, QueryTriggerInteraction.Ignore);
+        if(sphereCastLanding > 0 && rb.linearVelocity.y < -3f){
+            int accumulatedMask = 0;
+            for (int i = 0; i < sphereCastLanding; i++){
+                // Берем номер слоя (от 0 до 4)
+                // Превращаем номер в бит (например, слой 3 станет 1 << 3 = 00001000) и закидываем в общую корзину через побитовое ИЛИ (|=)
+                accumulatedMask |= 1 << hitCollidersLanding[i].collider.gameObject.layer;
+            }
+            CurrentPlayerBelowLegs =    ((accumulatedMask & objectLayer.value) != 0) ||
+                                        ((accumulatedMask & raftLayer.value) != 0) ||
+                                        ((accumulatedMask & waterLayer.value) != 0) ||
+                                        ((accumulatedMask & groundLayer.value) != 0) ? PlayerState.Ground :
+                                        PlayerState.Nothing;
+        }else CurrentPlayerBelowLegs = PlayerState.Nothing;
         // Если под ногами изменения по сравнению с предыдущим сохраненным флагом
-        if (LastPlayerBelowLegs != CurrentPlayerBelowLegs)
-        {
+        if (LastPlayerBelowLegs != CurrentPlayerBelowLegs){
             Debug.Log($"Change layer BELOW LEGS: {LastPlayerBelowLegs} -> {CurrentPlayerBelowLegs}");
-            anim.SetBool(SensLandingHash, CurrentPlayerBelowLegs == PlayerState.Ground);
+            anim.SetBool(SensBuoyant, CurrentPlayerBelowLegs == PlayerState.Ground);
             LastPlayerBelowLegs = CurrentPlayerBelowLegs;
         }
-        
+
     }
     private void OnDrawGizmosSelected(){
         // Отрисовываем тестовую сферу в груди игрока
@@ -125,7 +129,8 @@ public class PlayerSensors : MonoBehaviour
             return chestBone.position;  //new Vector3() писать не нужно, position уже Vector3
         return transform.position + Vector3.up * 1.5f; // Фолбэк, если кость не нашлась
     }    
-    private Vector3 GetPlayerLegs(float correctY){
+    private Vector3 GetPlayerLegs(float correctY = 0f)
+    {
         if (myCollider != null)
             return new Vector3(transform.position.x, myCollider.bounds.min.y + correctY, transform.position.z);
         return transform.position;
