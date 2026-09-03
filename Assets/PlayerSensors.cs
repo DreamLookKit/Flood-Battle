@@ -23,7 +23,7 @@ public class PlayerSensors : MonoBehaviour
     private Transform chestBone;
     private readonly Collider[] hitCollidersChest = new Collider[4]; 
     private readonly Collider[] hitCollidersLegs = new Collider[4];
-    private readonly RaycastHit[] hitCollidersLanding = new RaycastHit[32];   
+    private readonly RaycastHit[] hitCollidersLanding = new RaycastHit[4];   
     // ОБЪЯВЛЕНИЕ: Создаем ячейки для хранения числовых ID.
     // readonly означает, что мы запишем туда число один раз и никто его случайно не изменит.
     // static экономит память — эти ID будут общими для всех копий скрипта.
@@ -35,8 +35,9 @@ public class PlayerSensors : MonoBehaviour
     }
     private void Start(){
         rb = GetComponent<Rigidbody>();
+        myCollider = GetComponent<Collider>();
         anim = GetComponentInChildren<Animator>();
-        if(anim != null)
+        if (anim != null)
             chestBone = anim.GetBoneTransform(HumanBodyBones.Chest);
     }
     private void FixedUpdate(){
@@ -88,23 +89,13 @@ public class PlayerSensors : MonoBehaviour
         // 3. Находим землю под ногами игрока для анимации приземления
         int sphereCastLanding = Physics.SphereCastNonAlloc(
             GetPlayerLegs(), detectionRadius, Vector3.down, hitCollidersLanding, landingDistance, detectionMask, QueryTriggerInteraction.Ignore);
-        if(sphereCastLanding > 0 && rb.linearVelocity.y < -3f){
-            int accumulatedMask = 0;
-            for (int i = 0; i < sphereCastLanding; i++){
-                // Берем номер слоя (от 0 до 4)
-                // Превращаем номер в бит (например, слой 3 станет 1 << 3 = 00001000) и закидываем в общую корзину через побитовое ИЛИ (|=)
-                accumulatedMask |= 1 << hitCollidersLanding[i].collider.gameObject.layer;
-            }
-            CurrentPlayerBelowLegs =    ((accumulatedMask & objectLayer.value) != 0) ||
-                                        ((accumulatedMask & raftLayer.value) != 0) ||
-                                        ((accumulatedMask & waterLayer.value) != 0) ||
-                                        ((accumulatedMask & groundLayer.value) != 0) ? PlayerState.Ground :
-                                        PlayerState.Nothing;
-        }else CurrentPlayerBelowLegs = PlayerState.Nothing;
+        if (sphereCastLanding > 0 && rb.linearVelocity.y < -3f)
+            CurrentPlayerBelowLegs = PlayerState.Ground;
+        else CurrentPlayerBelowLegs = PlayerState.Nothing;
         // Если под ногами изменения по сравнению с предыдущим сохраненным флагом
         if (LastPlayerBelowLegs != CurrentPlayerBelowLegs){
             Debug.Log($"Change layer BELOW LEGS: {LastPlayerBelowLegs} -> {CurrentPlayerBelowLegs}");
-            anim.SetBool(SensBuoyant, CurrentPlayerBelowLegs == PlayerState.Ground);
+            anim.SetBool(SensLandingHash, CurrentPlayerBelowLegs == PlayerState.Ground);
             LastPlayerBelowLegs = CurrentPlayerBelowLegs;
         }
 
@@ -129,8 +120,7 @@ public class PlayerSensors : MonoBehaviour
             return chestBone.position;  //new Vector3() писать не нужно, position уже Vector3
         return transform.position + Vector3.up * 1.5f; // Фолбэк, если кость не нашлась
     }    
-    private Vector3 GetPlayerLegs(float correctY = 0f)
-    {
+    private Vector3 GetPlayerLegs(float correctY = 0f){
         if (myCollider != null)
             return new Vector3(transform.position.x, myCollider.bounds.min.y + correctY, transform.position.z);
         return transform.position;
