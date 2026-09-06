@@ -98,7 +98,6 @@ public class PlayerSensors : MonoBehaviour
             anim.SetBool(SensLandingHash, CurrentPlayerBelowLegs == PlayerState.Ground);
             LastPlayerBelowLegs = CurrentPlayerBelowLegs;
         }
-
     }
     private void OnDrawGizmosSelected(){
         // Отрисовываем тестовую сферу в груди игрока

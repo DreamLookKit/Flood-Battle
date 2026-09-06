@@ -39,14 +39,14 @@ public class PropsSensor : MonoBehaviour
                                PropState.Nothing;
         }
     }
-    private void OnDrawGizmosSelected(){
+    /*private void OnDrawGizmosSelected(){
         Gizmos.color = CurrentPropState switch{
             PropState.Water     => Color.cyan,
             PropState.Ground    => Color.green,
             PropState.Nothing   => Color.white
         };
         Gizmos.DrawWireSphere(GetObjectBottom(0.1f), detectionRadius);
-    }
+    }*/
     private Vector3 GetObjectBottom(float correctY){
         if (myCollider != null)
             return new Vector3(transform.position.x, myCollider.bounds.min.y + correctY, transform.position.z);
