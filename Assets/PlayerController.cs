@@ -248,9 +248,8 @@ public class PlayerController : MonoBehaviour{
             };
         }
         // Окончательное урезание скорости в воде и на суше, если движение задом
-        if (inputVector.y < -0.1f){
+        if (inputVector.y < -0.1f)
             currentSpeed *= 0.5f; 
-        }
         // Идеальная горизонтальная скорость, которую хочет получить игрок прямо сейчас
         Vector3 normalVelocity = moveDirection * currentSpeed;
         // ПЛАВНО подтягиваем ТЕКУЩУЮ скорость Rigidbody к ИДЕАЛЬНОЙ скорости через MoveTowards

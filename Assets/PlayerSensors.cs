@@ -27,12 +27,10 @@ public class PlayerSensors : MonoBehaviour
     // ОБЪЯВЛЕНИЕ: Создаем ячейки для хранения числовых ID.
     // readonly означает, что мы запишем туда число один раз и никто его случайно не изменит.
     // static экономит память — эти ID будут общими для всех копий скрипта.
-    private static readonly int SensWaterHash = Animator.StringToHash("senWater");
-    private static readonly int SensGroundHash = Animator.StringToHash("senGround");
-    private static readonly int SensBuoyant = Animator.StringToHash("senBuoyant");
-    private static readonly int SensLandingHash = Animator.StringToHash("senLanding"); 
-    private void Awake(){
-    }
+    private static readonly int playerWaterHash = Animator.StringToHash("playerWater");
+    private static readonly int playerGroundHash = Animator.StringToHash("playerGround");
+    private static readonly int playerBuoyant = Animator.StringToHash("playerBuoyant");
+    private static readonly int playerLandingHash = Animator.StringToHash("playerLanding");
     private void Start(){
         rb = GetComponent<Rigidbody>();
         myCollider = GetComponent<Collider>();
@@ -40,7 +38,44 @@ public class PlayerSensors : MonoBehaviour
         if (anim != null)
             chestBone = anim.GetBoneTransform(HumanBodyBones.Chest);
     }
+    private void Update()
+    {
+        // Отправка в аниматор данные
+        // 1. Если на уровне груди изменения по сравнению с предыдущим сохраненным флагом
+        if (LastPlayerChest != CurrentPlayerChest)
+        {
+            //Debug.Log($"Change layer near CHEST: {LastPlayerChest} -> {CurrentPlayerChest}");
+            anim.SetBool(playerBuoyant, CurrentPlayerChest == PlayerState.Water);
+            LastPlayerChest = CurrentPlayerChest;
+        }
+        // 2. Если на уровне ног изменения по сравнению с предыдущим сохраненным флагом
+        if (LastPlayerLegs != CurrentPlayerLegs)
+        {
+            // Debug.Log($"Change layer near LEGS: {LastPlayerLegs} -> {CurrentPlayerLegs}");
+            // Выключаем то, из чего вышли
+            switch (LastPlayerLegs)
+            {
+                case PlayerState.Water: anim.SetBool(playerWaterHash, false); break;
+                case PlayerState.Ground: anim.SetBool(playerGroundHash, false); break;
+            }
+            // Включаем то, куда пришли
+            switch (CurrentPlayerLegs)
+            {
+                case PlayerState.Water: anim.SetBool(playerWaterHash, true); break;
+                case PlayerState.Ground: anim.SetBool(playerGroundHash, true); break;
+            }
+            LastPlayerLegs = CurrentPlayerLegs;
+        }
+        // 3. Если под ногами изменения по сравнению с предыдущим сохраненным флагом
+        if (LastPlayerBelowLegs != CurrentPlayerBelowLegs)
+        {
+            Debug.Log($"Change layer BELOW LEGS: {LastPlayerBelowLegs} -> {CurrentPlayerBelowLegs}");
+            anim.SetBool(playerLandingHash, CurrentPlayerBelowLegs == PlayerState.Ground);
+            LastPlayerBelowLegs = CurrentPlayerBelowLegs;
+        }
+    }
     private void FixedUpdate(){
+        // Проверка слоев
         // 1. Проверяем, вода у игрока на уровне гурди или нет - GetPlayerChest()
         int overlapSphereChest = Physics.OverlapSphereNonAlloc(
             GetPlayerChest(), detectionRadius, hitCollidersChest,
@@ -49,55 +84,30 @@ public class PlayerSensors : MonoBehaviour
             CurrentPlayerChest = PlayerState.Water;
         else
             CurrentPlayerChest = PlayerState.Nothing;
-        // Если на уровне груди изменения по сравнению с предыдущим сохраненным флагом
-        if (LastPlayerChest != CurrentPlayerChest){
-            Debug.Log($"Change layer near CHEST: {LastPlayerChest} -> {CurrentPlayerChest}");
-            anim.SetBool(SensBuoyant, CurrentPlayerChest == PlayerState.Water);
-            LastPlayerChest = CurrentPlayerChest;
-        }
         // 2. Проверяем, вода или земля на уровне ног - GetPlayerLegs()
         int overlapSphereLegs = Physics.OverlapSphereNonAlloc(
             GetPlayerLegs(0.1f), detectionRadius, hitCollidersLegs,
             detectionMask, QueryTriggerInteraction.Collide);
         if(overlapSphereLegs > 0){
-            int accumulatedMask = 0;
+            bool stoodOnSomething = false;
             for (int i = 0; i < overlapSphereLegs; i++) {
-                // Берем номер слоя (от 0 до 4)
-                int layer = hitCollidersLegs[i].gameObject.layer;
-                // Превращаем номер в бит (например, слой 3 станет 1 << 3 = 00001000) и закидываем в общую корзину через побитовое ИЛИ (|=)
-                accumulatedMask |= (1 << layer);
+                int layer = 1 << hitCollidersLegs[i].gameObject.layer;
+                // Вода — абсолютный приоритет для ног во Flood
+                if ((layer & waterLayer.value) != 0){
+                    CurrentPlayerLegs = PlayerState.Water;
+                    break;
+                }
+                // Если это твердая поверхность — запоминаем
+                if (((raftLayer.value | objectLayer.value | groundLayer.value) & layer) != 0) stoodOnSomething = true;
             }
-            CurrentPlayerLegs = ((accumulatedMask & waterLayer.value) != 0) ? PlayerState.Water :
-                                 ((accumulatedMask & groundLayer.value) != 0) ? PlayerState.Ground :
-                                 PlayerState.Nothing;
+            CurrentPlayerLegs = stoodOnSomething ? PlayerState.Ground : PlayerState.Nothing;
         }else CurrentPlayerLegs = PlayerState.Nothing;
-        // Если на уровне ног изменения по сравнению с предыдущим сохраненным флагом
-        if(LastPlayerLegs != CurrentPlayerLegs){
-            Debug.Log($"Change layer near LEGS: {LastPlayerLegs} -> {CurrentPlayerLegs}");
-            // Выключаем то, из чего вышли
-            switch (LastPlayerLegs){
-                case PlayerState.Water:  anim.SetBool(SensWaterHash, false); break;
-                case PlayerState.Ground: anim.SetBool(SensGroundHash, false); break;
-            }
-            // Включаем то, куда пришли
-            switch (CurrentPlayerLegs){
-                case PlayerState.Water:  anim.SetBool(SensWaterHash, true); break;
-                case PlayerState.Ground: anim.SetBool(SensGroundHash, true); break;
-            }
-            LastPlayerLegs = CurrentPlayerLegs;
-        }
         // 3. Находим землю под ногами игрока для анимации приземления
         int sphereCastLanding = Physics.SphereCastNonAlloc(
             GetPlayerLegs(), detectionRadius, Vector3.down, hitCollidersLanding, landingDistance, detectionMask, QueryTriggerInteraction.Ignore);
         if (sphereCastLanding > 0 && rb.linearVelocity.y < -3f)
             CurrentPlayerBelowLegs = PlayerState.Ground;
         else CurrentPlayerBelowLegs = PlayerState.Nothing;
-        // Если под ногами изменения по сравнению с предыдущим сохраненным флагом
-        if (LastPlayerBelowLegs != CurrentPlayerBelowLegs){
-            Debug.Log($"Change layer BELOW LEGS: {LastPlayerBelowLegs} -> {CurrentPlayerBelowLegs}");
-            anim.SetBool(SensLandingHash, CurrentPlayerBelowLegs == PlayerState.Ground);
-            LastPlayerBelowLegs = CurrentPlayerBelowLegs;
-        }
     }
     private void OnDrawGizmosSelected(){
         // Отрисовываем тестовую сферу в груди игрока
@@ -113,6 +123,14 @@ public class PlayerSensors : MonoBehaviour
             _                   => Color.white
         };
         Gizmos.DrawWireSphere(GetPlayerLegs(0.1f), detectionRadius);
+        // Отрисовываем тестовую сферу ПОД ногами игрока
+        Gizmos.color = CurrentPlayerBelowLegs switch
+        {
+            PlayerState.Ground => Color.green,
+            PlayerState.Water => Color.blue,
+            _ => Color.white
+        };
+        Gizmos.DrawWireSphere(GetPlayerLegs(-landingDistance), detectionRadius);
     }
     private Vector3 GetPlayerChest(){
         if (chestBone != null)
