@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 1759618077441809970}
   - component: {fileID: -6055492577290771859}
   - component: {fileID: 9024275895446332074}
-  - component: {fileID: 5175884517922695454}
+  - component: {fileID: 4544985716141827908}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -146,7 +146,7 @@ MonoBehaviour:
   - {x: 0.5, y: 0, z: -0.5}
   - {x: -0.5, y: 0, z: -0.5}
   - {x: 0, y: 0, z: 0}
---- !u!114 &5175884517922695454
+--- !u!114 &4544985716141827908
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -155,18 +155,24 @@ MonoBehaviour:
   m_GameObject: {fileID: 1522248751245443366}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f05be8f3c8e2e964bb9cf16a3345cc07, type: 3}
+  m_Script: {fileID: 11500000, guid: 118e716b64b365f499d5821b1f5436f4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSensors
   groundLayer:
     serializedVersion: 2
     m_Bits: 8
+  raftLayer:
+    serializedVersion: 2
+    m_Bits: 128
+  objectLayer:
+    serializedVersion: 2
+    m_Bits: 256
   waterLayer:
     serializedVersion: 2
     m_Bits: 16
   detectionMask:
     serializedVersion: 2
-    m_Bits: 24
+    m_Bits: 408
   detectionRadius: 0.2
   landingDistance: 1.7
 --- !u!1 &7380173767998404187

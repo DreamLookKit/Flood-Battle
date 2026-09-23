@@ -18,7 +18,8 @@
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
-public class BuoyantObject : MonoBehaviour{
+public class BuoyantObject : MonoBehaviour
+{
     // Переменные
     [Header("Buoyant settings")]
     //Коэффициент плавучести. 1.0 — баланс, 2.0 — плавает как пенопласт, меньше 1.0 — тонет
@@ -32,7 +33,8 @@ public class BuoyantObject : MonoBehaviour{
     [SerializeField] private float detectionRadius = 0.2f;
     [Header("Advanced Physics")]
     [Tooltip("Buoyancy points at the corners")]
-    [SerializeField] private Vector3[] buoyancyPoints = new Vector3[]{
+    [SerializeField]
+    private Vector3[] buoyancyPoints = new Vector3[]{
         new Vector3(0.5f, 0f, 0.5f), new Vector3(-0.5f, 0f, 0.5f),
         new Vector3(0.5f, 0f, -0.5f), new Vector3(-0.5f, 0f, -0.5f),
         new Vector3(0f, 0f, 0f)
@@ -43,17 +45,18 @@ public class BuoyantObject : MonoBehaviour{
     private readonly Collider[] hitColliders = new Collider[4];
     private Rigidbody rb;
     private PlayerController pc; // Теперь эта ссылка видна ВСЕМ методам внутри этого файла!
-    private bool isInsideWater = false;
-    private bool isChestInWater = false;
     // Публичное свойство для проверки нахождения в воде
-    public bool IsInWater => isInsideWater;     // Для всех объектов в воде
-    public bool ChestInWater => isChestInWater; // Для игроков, включение анимации плавания при поднятии воды до груди
-    private float objectHeight;
+    public bool IsInWater => _isInsideWater;     // Для всех объектов в воде
+    public bool ChestInWater => _isChestInWater; // Для игроков, включение анимации плавания при поднятии воды до груди
     private Collider myCollider;
     private RigidbodyConstraints originalConstraints;
     private Animator anim;
+    private float _objectHeight;
+    private bool _isInsideWater = false;
+    private bool _isChestInWater = false;
     // Start
-    private void Start(){
+    private void Start()
+    {
         rb = GetComponent<Rigidbody>();
         pc = GetComponent<PlayerController>();
         // Ограничиваем максимальную глубину высотой самого объекта, 
@@ -62,15 +65,16 @@ public class BuoyantObject : MonoBehaviour{
         // Ищем аниматор на дочерней 3D-модели
         anim = GetComponentInChildren<Animator>();
         // Запоминаем, какие галочки стояли у объекта изначально
-        originalConstraints = rb.constraints; 
-        if(myCollider != null)
-            objectHeight = myCollider.bounds.size.y;
+        originalConstraints = rb.constraints;
+        if (myCollider != null)
+            _objectHeight = myCollider.bounds.size.y;
         // Сдвигаем центр масс физического тела вниз на половину его высоты
         // Теперь физический «тяжелый низ» будет удерживать объект от переворотов
-        rb.centerOfMass = new Vector3(0f, -objectHeight * 0.5f, 0f);
+        rb.centerOfMass = new Vector3(0f, -_objectHeight * 0.5f, 0f);
     }
     // Физическая сила всегда применяется в FixedUpdate (50 раз всекунду)
-    private void FixedUpdate(){
+    private void FixedUpdate()
+    {
         // Ищем только воду, используя маску!
         int numColliders = Physics.OverlapSphereNonAlloc(
             GetObjectBottom(), detectionRadius, hitColliders,
@@ -80,24 +84,27 @@ public class BuoyantObject : MonoBehaviour{
             waterLayerMask, QueryTriggerInteraction.Collide);
         float waterSurfaceY = float.MinValue;
         // Цикл по твоему массиву хитов
-        if (numColliders > 0){ // Если хоть что-то нашли в воде
-            isInsideWater = true;
+        if (numColliders > 0)
+        { // Если хоть что-то нашли в воде
+            _isInsideWater = true;
             waterSurfaceY = hitColliders[0].bounds.max.y; // Фикс определения уровня воды
             // Считаем базовую силу на одну точку. Делим общую силу Архимеда на количество точек.
             float shareForcePerPoint = (floatingPower * rb.mass * Mathf.Abs(Physics.gravity.y)) / buoyancyPoints.Length;
-            foreach (Vector3 localPoint in buoyancyPoints){
+            foreach (Vector3 localPoint in buoyancyPoints)
+            {
                 // Просто переводим локальную точку в мировые координаты. Unity сам применит Scale и Rotation!
                 Vector3 worldPointPos = transform.TransformPoint(localPoint);
                 float pointDepth = waterSurfaceY - worldPointPos.y;
-                if (pointDepth > 0){
+                if (pointDepth > 0)
+                {
                     // ХАК 1: Нелинейное погружение (корень делает поведение в воде мягче)
-                    float linearRatio = Mathf.Clamp01(pointDepth / objectHeight);
+                    float linearRatio = Mathf.Clamp01(pointDepth / _objectHeight);
                     float immersionRatio = Mathf.Sqrt(linearRatio); // Мягкий старт, упругий финал
                     // Базовая выталкивающая сила для точки
                     Vector3 buoyantForce = Vector3.up * shareForcePerPoint * immersionRatio;
                     // ХАК 2: Локальное водяное сопротивление (Демпфирование точки)
                     // Находим скорость конкретно ЭТОЙ точки в мировом пространстве
-                    Vector3 pointVelocity = rb.GetPointVelocity(worldPointPos);   
+                    Vector3 pointVelocity = rb.GetPointVelocity(worldPointPos);
                     // Сила сопротивления направлена против движения точки и зависит от её скорости и Drag
                     Vector3 dampingForce = -pointVelocity * waterDrag * immersionRatio;
                     // Итоговая сила = Выталкивание + Гашение колебаний
@@ -106,12 +113,15 @@ public class BuoyantObject : MonoBehaviour{
                     rb.AddForceAtPosition(totalPointForce, worldPointPos, ForceMode.Force);
                 }
             }
-        }else 
-            isInsideWater = false;
-        if(numColliders2 > 0){  //Если грудная клетка в воде
-            isChestInWater = true;
-        }else
-            isChestInWater = false;
+        }
+        else
+            _isInsideWater = false;
+        if (numColliders2 > 0)
+        {  //Если грудная клетка в воде
+            _isChestInWater = true;
+        }
+        else
+            _isChestInWater = false;
     }
     /* private void OnDrawGizmosSelected(){
         Gizmos.color = isInsideWater == true ? Color.blue : Color.white;
@@ -121,13 +131,16 @@ public class BuoyantObject : MonoBehaviour{
             Gizmos.DrawWireSphere(GetChestPoint(), detectionRadius);
         }
     } */
-    private Vector3 GetObjectBottom(){
+    private Vector3 GetObjectBottom()
+    {
         if (myCollider != null)
             return new Vector3(transform.position.x, myCollider.bounds.min.y + 0.2f, transform.position.z);
         return transform.position;
     }
-    private Vector3 GetChestPoint(){
-        if (pc != null && anim != null){
+    private Vector3 GetChestPoint()
+    {
+        if (pc != null && anim != null)
+        {
             Transform chestBone = anim.GetBoneTransform(HumanBodyBones.Chest);
             if (chestBone != null)
                 return chestBone.position;  //new Vector3() писать не нужно, position уже Vector3

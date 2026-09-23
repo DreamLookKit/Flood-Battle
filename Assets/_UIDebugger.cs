@@ -1,18 +1,20 @@
 using UnityEngine;
 using TMPro;
 
-public class _UIDebugger : MonoBehaviour{
+public class _UIDebugger : MonoBehaviour
+{
     [Header("Links")]
     private Transform playerTransform;
     private Animator anim;
     [SerializeField] private TextMeshProUGUI debugText;
     private Vector3 lastPosition;
-    private float horizontalSpeed;
-    private float verticalSpeed;
-/*     private bool IsInWater;
-    private bool IsGrounded;
-    private bool IsCrouched; */
-    void Update(){
+    private float _horizontalSpeed;
+    private float _verticalSpeed;
+    /*     private bool IsInWater;
+        private bool IsGrounded;
+        private bool IsCrouched; */
+    void Update()
+    {
         if (debugText == null) return;
         // Если игрок еще не найден (или раунд перезапустился и старый игрок удален)
         if (playerTransform == null)
@@ -20,11 +22,12 @@ public class _UIDebugger : MonoBehaviour{
             // Ищем на сцене живой объект игрока по его тегу
             GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
             anim = playerObj.GetComponentInChildren<Animator>();
-            if (playerObj != null){
+            if (playerObj != null)
+            {
                 playerTransform = playerObj.transform;
                 lastPosition = playerTransform.position;    // Устанавливаем первую координату игрока
             }
-            if(anim == null) Debug.LogError("Animator not found!");   // Проверка IsInWater
+            if (anim == null) Debug.LogError("Animator not found!");   // Проверка IsInWater
         }
         // Как только игрок найден — считаем его скорость
         Vector3 currentPosition = playerTransform.position;
@@ -32,8 +35,8 @@ public class _UIDebugger : MonoBehaviour{
         float deltaTime = Time.deltaTime;
         if (deltaTime > 0)
         {
-            horizontalSpeed = new Vector3(displacement.x, 0f, displacement.z).magnitude / deltaTime;
-            verticalSpeed = displacement.y / deltaTime;
+            _horizontalSpeed = new Vector3(displacement.x, 0f, displacement.z).magnitude / deltaTime;
+            _verticalSpeed = displacement.y / deltaTime;
         }
         lastPosition = currentPosition;
         // Выводим данные на UI в реальном времени

@@ -1,10 +1,12 @@
 using UnityEngine;
 
-public class GameManager : MonoBehaviour{
+public class GameManager : MonoBehaviour
+{
     // Экземпляр синглтона (одиночки)
-    public static GameManager Instance {get; private set;}
+    public static GameManager Instance { get; private set; }
     // Список игровых фаз
-    public enum GameState{
+    public enum GameState
+    {
         Building, // Фаза 1: Постройка лодки (Например: 2 минуты)
         Flood,    // Фаза 2: Затопление локации
         Battle,   // Фаза 3: Битва с ботами
@@ -13,25 +15,32 @@ public class GameManager : MonoBehaviour{
     // Текущее состояние игры
     public GameState currentState = GameState.Building;
     public float timer = 1f; // Таймер на 10 секунд (для тестов) на постройку лодки
-    private void Awake(){
+    private void Awake()
+    {
         // Кастомный синглтон: этот объект будет доступен для всех остальных скриптов
-        if(Instance == null){
+        if (Instance == null)
+        {
             Instance = this;
             DontDestroyOnLoad(gameObject);
-        }else
+        }
+        else
             Destroy(gameObject);
     }
     // Графика и Логика (Привязана к FPS: 60, 100, 144 - неважно)
-    private void Update(){
+    private void Update()
+    {
         // Метод Update вызывается каждый кадр. Уменьшаем таймер
-        if (timer > 0){
+        if (timer > 0)
+        {
             timer -= Time.deltaTime; // Time.deltaTime - это задержка между кадрами
         }
         else
             AdvancePhase(); // Таймер закончился, переходим к следующей фазе
     }
-    private void AdvancePhase(){
-        switch (currentState){
+    private void AdvancePhase()
+    {
+        switch (currentState)
+        {
             case GameState.Building:
                 currentState = GameState.Flood;
                 timer = 30f; // 30 секунд (для тестов) на затопление
@@ -46,16 +55,19 @@ public class GameManager : MonoBehaviour{
                 currentState = GameState.RoundEnd;
                 timer = 20f; // 20 секунд на подсчет очков и очистку локации
                 EndRound();
-                break;      
+                break;
         }
     }
-    private void StartFlooding(){
+    private void StartFlooding()
+    {
         //Debug.Log("Water is rising!"); 
     }
-    private void StartBattle(){
+    private void StartBattle()
+    {
         //Debug.Log("Battle started!"); 
     }
-    private void EndRound(){
+    private void EndRound()
+    {
         //Debug.Log("Round ended! Cleaning up..."); 
     }
 }
