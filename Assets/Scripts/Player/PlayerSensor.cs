@@ -1,6 +1,6 @@
 using UnityEngine;
 [RequireComponent(typeof(PlayerController))]
-public class PlayerSensors : MonoBehaviour
+public class PlayerSensor : MonoBehaviour
 {
     [Header("Detection Settings")]
     [SerializeField] private LayerMask groundLayer;     // Маска слоя Ground

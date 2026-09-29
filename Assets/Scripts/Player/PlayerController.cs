@@ -33,6 +33,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private LayerMask groundLayer;
     [Header("References")]
     [SerializeField] private Camera playerCamera;
+    [SerializeField] private PlayerSensor playerSensor;
     // Мы делаем ссылки на действия публичными, чтобы скрипт меню настроек мог получить к ним доступ
     public InputAction MoveAction { get; private set; }
     public InputAction LookAction { get; private set; }
@@ -283,7 +284,6 @@ public class PlayerController : MonoBehaviour
         // Высота глаз теперь всегда рассчитывается строго от пола
         _defaultY = currentHeight * cameraHeightRatio;
     }
-    #region Water & Object Bottom & CheckLandingAhead for Jump
     private bool IsInWater()
     {
         return _buoyantScript != null && _buoyantScript.IsInWater;
@@ -301,5 +301,4 @@ public class PlayerController : MonoBehaviour
         if (_isGrounded) return true;
         return Physics.Raycast(transform.position, Vector3.down, landingAheadDistance, groundLayer, QueryTriggerInteraction.Ignore);
     }
-    #endregion
 }
