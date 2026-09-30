@@ -153,7 +153,8 @@ public class PlayerController : MonoBehaviour
         && JumpAction.WasPressedThisFrame() 
         && !CrouchAction.IsPressed() 
         && anim != null) 
-        { 
+        {
+            Debug.Log($"LANDING: {_rb.CurrentPlayerBelowLegs}");
             //if (_speed <= walkSpeed)
             //{
             //    anim.SetTrigger("Jump");

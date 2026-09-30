@@ -95,7 +95,7 @@ public class PlayerSensor : MonoBehaviour
             detectionMask, QueryTriggerInteraction.Collide);
         if (overlapSphereLegs > 0)
         {
-            bool stoodOnSomething = false;
+            //bool stoodOnSomething = false;
             for (int i = 0; i < overlapSphereLegs; i++)
             {
                 int layer = 1 << hitCollidersLegs[i].gameObject.layer;
@@ -105,10 +105,13 @@ public class PlayerSensor : MonoBehaviour
                     CurrentPlayerLegs = PlayerState.Water;
                     break;
                 }
-                // Если это твердая поверхность — запоминаем
-                if (((raftLayer.value | objectLayer.value | groundLayer.value) & layer) != 0) stoodOnSomething = true;
+                else
+                {
+                    if (((raftLayer.value | objectLayer.value | groundLayer.value) & layer) != 0) CurrentPlayerLegs = PlayerState.Ground;
+                    break;
+                }
             }
-            CurrentPlayerLegs = stoodOnSomething ? PlayerState.Ground : PlayerState.Nothing;
+            //CurrentPlayerLegs = stoodOnSomething ? PlayerState.Ground : PlayerState.Nothing;
         }
         else CurrentPlayerLegs = PlayerState.Nothing;
         // 3. Находим землю под ногами игрока для анимации приземления
