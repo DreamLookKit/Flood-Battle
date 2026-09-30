@@ -95,23 +95,18 @@ public class PlayerSensor : MonoBehaviour
             detectionMask, QueryTriggerInteraction.Collide);
         if (overlapSphereLegs > 0)
         {
-            //bool stoodOnSomething = false;
+            bool foundWater = false;
+            bool foundGround= false;
             for (int i = 0; i < overlapSphereLegs; i++)
             {
                 int layer = 1 << hitCollidersLegs[i].gameObject.layer;
                 // Вода — абсолютный приоритет для ног во Flood
                 if ((layer & waterLayer.value) != 0)
-                {
-                    CurrentPlayerLegs = PlayerState.Water;
-                    break;
-                }
+                    foundWater = true;
                 else
-                {
-                    if (((raftLayer.value | objectLayer.value | groundLayer.value) & layer) != 0) CurrentPlayerLegs = PlayerState.Ground;
-                    break;
-                }
+                    if (((raftLayer.value | objectLayer.value | groundLayer.value) & layer) != 0) foundGround = true;
             }
-            //CurrentPlayerLegs = stoodOnSomething ? PlayerState.Ground : PlayerState.Nothing;
+            CurrentPlayerLegs = foundWater ? PlayerState.Water : foundGround ? PlayerState.Ground : PlayerState.Nothing;
         }
         else CurrentPlayerLegs = PlayerState.Nothing;
         // 3. Находим землю под ногами игрока для анимации приземления
