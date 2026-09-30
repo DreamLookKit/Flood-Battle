@@ -1,5 +1,7 @@
+using Unity.Multiplayer.PlayMode;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using static PlayerSensor;
 
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(CapsuleCollider))]
@@ -44,6 +46,7 @@ public class PlayerController : MonoBehaviour
     private CapsuleCollider _capsuleCollider;    // Ссылка для изменения высоты тела
     //public CapsuleCollider PlayerCollider => _capsuleCollider; // Безопасная ссылка на CapsuleCollider
     private BuoyantObject _buoyantScript;
+    private PlayerSensor _playerSensor;     //  Локальная переменная-ссылка на сторонний скрпит PlayerSensor.cs
     private enum JumpState { Grounded, InNormalJump, InLongJump, LandingProcessed }
     private JumpState _currentJumpState = JumpState.Grounded;
     // ОБЪЯВЛЕНИЕ: Создаем ячейки для хранения числовых ID.
@@ -51,11 +54,15 @@ public class PlayerController : MonoBehaviour
     // static экономит память — эти ID будут общими для всех копий скрипта.
     private static readonly int _SpeedHash = Animator.StringToHash("PlayerController|Speed");
     private static readonly int _IsCrouchedHash = Animator.StringToHash("PlayerController|IsCrouched");
+    private static readonly int _WaterHash = Animator.StringToHash("PlayerSensor|Water");
+    private static readonly int _GroundHash = Animator.StringToHash("PlayerSensor|Ground");
+    private static readonly int _BuoyantHash = Animator.StringToHash("PlayerSensor|Buoyant");
+    private static readonly int _LandingHash = Animator.StringToHash("PlayerSensor|Landing");
     private float _cameraRotationX = 0f;
     //private float currentCameraY;   // Текущая локальная высота камеры
     private float _speed;            // Текущая скорость игрока
     private float _speedForAnim;     // Текущая скорость игрока, которая будет передваться в аниматор с измененным знаком
-    private float _defaultY = 0f;
+    private float _defaultY = 0f;    // Стандартное положение камеры по оси Y
     private float _timer = 0f;
     private bool _isGrounded;
     private void Awake()
@@ -92,13 +99,12 @@ public class PlayerController : MonoBehaviour
     }
     private void Start()
     {
-        _rb = GetComponent<Rigidbody>();
+        anim = GetComponentInChildren<Animator>();
+        _rb = GetComponent<Rigidbody>(); 
         _capsuleCollider = GetComponent<CapsuleCollider>();      // Поиск нашего коллайдера
         _buoyantScript = GetComponent<BuoyantObject>();          // Поиск плавучести
-        _rb.interpolation = RigidbodyInterpolation.Interpolate;
-        //Обнуляем все флаги прыжка/приземления
+        _playerSensor = GetComponent<PlayerSensor>();            // Кэшируем переменную-ссылку на PlayerSensor.cs
         // Ищем аниматор на дочерней 3D-модели
-        anim = GetComponentInChildren<Animator>();
         // Автоматически находим камеру среди дочерних объектов, если она не была перетащена в Инспектор
         if (playerCamera == null)
         {
@@ -137,15 +143,51 @@ public class PlayerController : MonoBehaviour
             playerCamera.transform.localPosition = newPos;
         }
         // ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
-        // Передаем скорость
         if (anim != null)
         {
+            // Передаем скорость игрока
             if (CrouchAction.IsPressed())
                 anim.SetFloat(_SpeedHash, _speedForAnim, 0.1f, Time.deltaTime);
             else
                 anim.SetFloat(_SpeedHash, _speedForAnim);
             // Передаем положение стоит/присяд
             anim.SetBool(_IsCrouchedHash, CrouchAction.IsPressed());
+            // ДЕТЕКЦИЯ СЛОЕВ (ВОДА, ЗЕМЛЯ и тд)
+            // Если на уровне груди игрока изменения по сравнению с предыдущим сохраненным флагом
+            if (_playerSensor.LastPlayerChest != _playerSensor.CurrentPlayerChest)
+            {
+                //Debug.Log($"Change layer near CHEST: {LastPlayerChest} -> {CurrentPlayerChest}");
+                anim.SetBool(_BuoyantHash, _playerSensor.CurrentPlayerChest == PlayerState.Water);
+                _playerSensor.LastPlayerChest = _playerSensor.CurrentPlayerChest;
+            }
+            // Если на уровне ног изменения по сравнению с предыдущим сохраненным флагом
+            if (_playerSensor.LastPlayerLegs != _playerSensor.CurrentPlayerLegs)
+            {
+                // Debug.Log($"Change layer near LEGS: {LastPlayerLegs} -> {CurrentPlayerLegs}");
+                // Выключаем то, из чего вышли
+                switch (_playerSensor.LastPlayerLegs)
+                {
+                    case PlayerState.Water: anim.SetBool(_WaterHash, false); break;
+                    case PlayerState.Ground: anim.SetBool(_GroundHash, false); break;
+                }
+                // Включаем то, куда пришли
+                switch (_playerSensor.CurrentPlayerLegs)
+                {
+                    case PlayerState.Water: anim.SetBool(_WaterHash, true); break;
+                    case PlayerState.Ground: anim.SetBool(_GroundHash, true); break;
+                }
+                _playerSensor.LastPlayerLegs = _playerSensor.CurrentPlayerLegs;
+            }
+            // Если под ногами изменения по сравнению с предыдущим сохраненным флагом (для анимации Landing)
+            if (_playerSensor.LastPlayerBelowLegs != _playerSensor.CurrentPlayerBelowLegs)
+            {
+                //Debug.Log($"Change layer BELOW LEGS: {LastPlayerBelowLegs} -> {CurrentPlayerBelowLegs}");
+                // FOR TEST!
+                if (_playerSensor.CurrentPlayerBelowLegs == PlayerState.Ground)
+                    Debug.Log($"LANDING: {_playerSensor.CurrentPlayerBelowLegs}");
+                anim.SetBool(_LandingHash, _playerSensor.CurrentPlayerBelowLegs == PlayerState.Ground);
+                _playerSensor.LastPlayerBelowLegs = _playerSensor.CurrentPlayerBelowLegs;
+            }
         }
         // Передаем Jump и LongJump
         if (!IsInWater() 
@@ -154,7 +196,6 @@ public class PlayerController : MonoBehaviour
         && !CrouchAction.IsPressed() 
         && anim != null) 
         {
-            Debug.Log($"LANDING: {_rb.CurrentPlayerBelowLegs}");
             //if (_speed <= walkSpeed)
             //{
             //    anim.SetTrigger("Jump");

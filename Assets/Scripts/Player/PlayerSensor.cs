@@ -11,12 +11,12 @@ public class PlayerSensor : MonoBehaviour
     [SerializeField] private float detectionRadius = 0.2f; // Радиус сферы детекции под ногами
     [SerializeField] private float landingDistance = 1.7f; // Дистанция до земли для срабатывания анимации приземления
     public enum PlayerState { Nothing, Raft, Object, Ground, Water }
-    public PlayerState CurrentPlayerChest { get; private set; } = PlayerState.Nothing;
-    public PlayerState LastPlayerChest { get; private set; } = PlayerState.Nothing;
-    public PlayerState CurrentPlayerLegs { get; private set; } = PlayerState.Nothing;
-    public PlayerState LastPlayerLegs { get; private set; } = PlayerState.Nothing;
-    public PlayerState CurrentPlayerBelowLegs { get; private set; } = PlayerState.Nothing;
-    public PlayerState LastPlayerBelowLegs { get; private set; } = PlayerState.Nothing;
+    public PlayerState CurrentPlayerChest { get; set; } = PlayerState.Nothing;
+    public PlayerState LastPlayerChest { get; set; } = PlayerState.Nothing;
+    public PlayerState CurrentPlayerLegs { get; set; } = PlayerState.Nothing;
+    public PlayerState LastPlayerLegs { get; set; } = PlayerState.Nothing;
+    public PlayerState CurrentPlayerBelowLegs { get; set; } = PlayerState.Nothing;
+    public PlayerState LastPlayerBelowLegs { get; set; } = PlayerState.Nothing;
     private Collider myCollider;
     private Rigidbody rb;
     private Animator anim;
@@ -27,10 +27,10 @@ public class PlayerSensor : MonoBehaviour
     // ОБЪЯВЛЕНИЕ: Создаем ячейки для хранения числовых ID.
     // readonly означает, что мы запишем туда число один раз и никто его случайно не изменит.
     // static экономит память — эти ID будут общими для всех копий скрипта.
-    private static readonly int _WaterHash = Animator.StringToHash("PlayerSensor|Water");
-    private static readonly int _GroundHash = Animator.StringToHash("PlayerSensor|Ground");
-    private static readonly int _BuoyantHash = Animator.StringToHash("PlayerSensor|Buoyant");
-    private static readonly int LandingHash = Animator.StringToHash("PlayerSensor|Landing");
+    //private static readonly int _WaterHash = Animator.StringToHash("PlayerSensor|Water");
+    //private static readonly int _GroundHash = Animator.StringToHash("PlayerSensor|Ground");
+    //private static readonly int _BuoyantHash = Animator.StringToHash("PlayerSensor|Buoyant");
+    //private static readonly int LandingHash = Animator.StringToHash("PlayerSensor|Landing");
     private void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -41,42 +41,42 @@ public class PlayerSensor : MonoBehaviour
     }
     private void Update()
     {
-        // Отправка в аниматор данные
-        // 1. Если на уровне груди изменения по сравнению с предыдущим сохраненным флагом
-        if (LastPlayerChest != CurrentPlayerChest)
-        {
-            //Debug.Log($"Change layer near CHEST: {LastPlayerChest} -> {CurrentPlayerChest}");
-            anim.SetBool(_BuoyantHash, CurrentPlayerChest == PlayerState.Water);
-            LastPlayerChest = CurrentPlayerChest;
-        }
-        // 2. Если на уровне ног изменения по сравнению с предыдущим сохраненным флагом
-        if (LastPlayerLegs != CurrentPlayerLegs)
-        {
-            // Debug.Log($"Change layer near LEGS: {LastPlayerLegs} -> {CurrentPlayerLegs}");
-            // Выключаем то, из чего вышли
-            switch (LastPlayerLegs)
-            {
-                case PlayerState.Water: anim.SetBool(_WaterHash, false); break;
-                case PlayerState.Ground: anim.SetBool(_GroundHash, false); break;
-            }
-            // Включаем то, куда пришли
-            switch (CurrentPlayerLegs)
-            {
-                case PlayerState.Water: anim.SetBool(_WaterHash, true); break;
-                case PlayerState.Ground: anim.SetBool(_GroundHash, true); break;
-            }
-            LastPlayerLegs = CurrentPlayerLegs;
-        }
-        // 3. Если под ногами изменения по сравнению с предыдущим сохраненным флагом (для анимации Landing)
-        if (LastPlayerBelowLegs != CurrentPlayerBelowLegs)
-        {
-            //Debug.Log($"Change layer BELOW LEGS: {LastPlayerBelowLegs} -> {CurrentPlayerBelowLegs}");
-            // FOR TEST!
-            if (CurrentPlayerBelowLegs == PlayerState.Ground)
-                Debug.Log($"LANDING: {CurrentPlayerBelowLegs}");
-            anim.SetBool(LandingHash, CurrentPlayerBelowLegs == PlayerState.Ground);
-            LastPlayerBelowLegs = CurrentPlayerBelowLegs;
-        }
+        //// Отправка в аниматор данные
+        //// 1. Если на уровне груди изменения по сравнению с предыдущим сохраненным флагом
+        //if (LastPlayerChest != CurrentPlayerChest)
+        //{
+        //    //Debug.Log($"Change layer near CHEST: {LastPlayerChest} -> {CurrentPlayerChest}");
+        //    anim.SetBool(_BuoyantHash, CurrentPlayerChest == PlayerState.Water);
+        //    LastPlayerChest = CurrentPlayerChest;
+        //}
+        //// 2. Если на уровне ног изменения по сравнению с предыдущим сохраненным флагом
+        //if (LastPlayerLegs != CurrentPlayerLegs)
+        //{
+        //    // Debug.Log($"Change layer near LEGS: {LastPlayerLegs} -> {CurrentPlayerLegs}");
+        //    // Выключаем то, из чего вышли
+        //    switch (LastPlayerLegs)
+        //    {
+        //        case PlayerState.Water: anim.SetBool(_WaterHash, false); break;
+        //        case PlayerState.Ground: anim.SetBool(_GroundHash, false); break;
+        //    }
+        //    // Включаем то, куда пришли
+        //    switch (CurrentPlayerLegs)
+        //    {
+        //        case PlayerState.Water: anim.SetBool(_WaterHash, true); break;
+        //        case PlayerState.Ground: anim.SetBool(_GroundHash, true); break;
+        //    }
+        //    LastPlayerLegs = CurrentPlayerLegs;
+        //}
+        //// 3. Если под ногами изменения по сравнению с предыдущим сохраненным флагом (для анимации Landing)
+        //if (LastPlayerBelowLegs != CurrentPlayerBelowLegs)
+        //{
+        //    //Debug.Log($"Change layer BELOW LEGS: {LastPlayerBelowLegs} -> {CurrentPlayerBelowLegs}");
+        //    // FOR TEST!
+        //    if (CurrentPlayerBelowLegs == PlayerState.Ground)
+        //        Debug.Log($"LANDING: {CurrentPlayerBelowLegs}");
+        //    anim.SetBool(LandingHash, CurrentPlayerBelowLegs == PlayerState.Ground);
+        //    LastPlayerBelowLegs = CurrentPlayerBelowLegs;
+        //}
     }
     private void FixedUpdate()
     {
