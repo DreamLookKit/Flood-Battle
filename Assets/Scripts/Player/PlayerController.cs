@@ -1,13 +1,14 @@
 using Unity.Multiplayer.PlayMode;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using FishNet.Object;
 using static PlayerSensor;
 
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(CapsuleCollider))]
 
 
-public class PlayerController : MonoBehaviour
+public class PlayerController : NetworkBehaviour
 {
     [Header("Breath Settings")]
     [SerializeField] private float breathSpeed = 5f;          // Скорость покачивания при дыхании
@@ -85,29 +86,38 @@ public class PlayerController : MonoBehaviour
             .With("Left", "<Keyboard>/a")   // Индекс привязки: 3
             .With("Right", "<Keyboard>/d"); // Индекс привязки: 4
         SprintAction = new InputAction("Sprint", binding: "<Keyboard>/leftShift");
-
-
-        JumpAction = new InputAction("Jump", binding: "<Keyboard>/space");
-        JumpAction.performed += ctx => _jumpWasPressed = true;
-
         CrouchAction = new InputAction("Crouch", binding: "<Keyboard>/leftCtrl");
     }
-    private void OnEnable()
+    public override void OnStartClient()
     {
-        MoveAction.Enable();
-        LookAction.Enable();
-        SprintAction.Enable();
-        JumpAction.Enable();
-        CrouchAction.Enable();
+        base.OnStartClient();
+        // Включаем импуты только если мы хозяева этого персонажа
+        if (IsOwner)
+        {
+            MoveAction.Enable();
+            JumpAction.Enable();
+            SprintAction.Enable();
+            CrouchAction.Enable();
+            // Подписываемя на прыжок
+            JumpAction.performed += OnJumpPerformed;
+            JumpAction.performed += _ => _jumpWasPressed = true;
+        }
     }
-    private void OnDisable()
+    public override void OnStopClient()
     {
-        MoveAction.Disable();
-        LookAction.Disable();
-        SprintAction.Disable();
-        JumpAction.Disable();
-        CrouchAction.Disable();
+        base.OnStopClient();
+        // Выключаем и отписываемся при отключении
+        if (IsOwner)
+        {
+            MoveAction.Disable();
+            JumpAction.Disable();
+            SprintAction.Disable();
+            CrouchAction.Disable();
+            JumpAction.performed -= OnJumpPerformed;
+            JumpAction.performed -= _ => _jumpWasPressed = true;
+        }
     }
+
     private void Start()
     {
         anim = GetComponentInChildren<Animator>();
@@ -130,6 +140,7 @@ public class PlayerController : MonoBehaviour
     // Графика и Логика (Привязана к FPS: 60, 100, 144 - неважно)
     private void Update()
     {
+        if (!IsOwner) return; //Только игрок может управлять персонажем
         //🖱️ Детекция мыши
         if (Mouse.current != null)
         {
@@ -154,8 +165,8 @@ public class PlayerController : MonoBehaviour
             newPos.y = _defaultY + Mathf.Sin(_timer) * currentAmount;
             playerCamera.transform.localPosition = newPos;
         }
-        //⌨ Детекция нажатий 
-        if (_playerSensor.CurrentPlayerLegs != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
+        // ⌨ Детекция нажатий
+        if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
         {
             if (JumpAction.WasPressedThisFrame())
             {
@@ -177,25 +188,25 @@ public class PlayerController : MonoBehaviour
             // Если на уровне груди игрока изменения по сравнению с предыдущим сохраненным флагом
             if (_playerSensor.LastPlayerChest != _playerSensor.CurrentPlayerChest)
             {
-                anim.SetBool(_BuoyantHash, _playerSensor.CurrentPlayerChest == PlayerState.Water);
-                _playerSensor.LastPlayerChest = _playerSensor.CurrentPlayerChest;
+                anim.SetBool(_BuoyantHash, _playerSensor.CurrentPlayerChest.Value == PlayerState.Water);
+                _playerSensor.LastPlayerChest.Value = _playerSensor.CurrentPlayerChest.Value;
             }
             // Если на уровне ног изменения по сравнению с предыдущим сохраненным флагом
             if (_playerSensor.LastPlayerLegs != _playerSensor.CurrentPlayerLegs)
             {
                 // Выключаем то, из чего вышли
-                switch (_playerSensor.LastPlayerLegs)
+                switch (_playerSensor.LastPlayerLegs.Value)
                 {
                     case PlayerState.Water: anim.SetBool(_WaterHash, false); break;
                     case PlayerState.Ground: anim.SetBool(_GroundHash, false); break;
                 }
                 // Включаем то, куда пришли
-                switch (_playerSensor.CurrentPlayerLegs)
+                switch (_playerSensor.CurrentPlayerLegs.Value)
                 {
                     case PlayerState.Water: anim.SetBool(_WaterHash, true); break;
                     case PlayerState.Ground: anim.SetBool(_GroundHash, true); break;
                 }
-                _playerSensor.LastPlayerLegs = _playerSensor.CurrentPlayerLegs;
+                _playerSensor.LastPlayerLegs.Value = _playerSensor.CurrentPlayerLegs.Value;
             }
             // Если под ногами изменения по сравнению с предыдущим сохраненным флагом (для анимации Landing)
             if (_playerSensor.LastPlayerBelowLegs != _playerSensor.CurrentPlayerBelowLegs)
@@ -203,14 +214,15 @@ public class PlayerController : MonoBehaviour
                 // FOR TEST!
                 //if (_playerSensor.CurrentPlayerBelowLegs == PlayerState.Ground)
                     //Debug.Log($"LANDING: {_playerSensor.CurrentPlayerBelowLegs}");
-                anim.SetBool(_LandingHash, _playerSensor.CurrentPlayerBelowLegs == PlayerState.Ground);
-                _playerSensor.LastPlayerBelowLegs = _playerSensor.CurrentPlayerBelowLegs;
+                anim.SetBool(_LandingHash, _playerSensor.CurrentPlayerBelowLegs.Value == PlayerState.Ground);
+                _playerSensor.LastPlayerBelowLegs.Value = _playerSensor.CurrentPlayerBelowLegs.Value;
             }
         }
     }
     // Физическая сила всегда применяется в FixedUpdate (50 раз всекунду)
     private void FixedUpdate()
     {
+        if (!IsOwner) return; //Только игрок может управлять персонажем
         // Считаем чисто горизонтальную скорость (без учета прыжков/падения по Y)
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         // Считаем скорость путем слолжения векторов (основную скорость)
@@ -225,7 +237,7 @@ public class PlayerController : MonoBehaviour
         }
 
 
-        if (_playerSensor.CurrentPlayerLegs != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
+        if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
         {
             HandleCrouch(); // Присяд игрока
             
@@ -345,5 +357,9 @@ public class PlayerController : MonoBehaviour
     {
         if (_isGrounded) return true;
         return Physics.Raycast(transform.position, Vector3.down, landingAheadDistance, groundLayer, QueryTriggerInteraction.Ignore);
+    }
+    private void OnJumpPerformed(UnityEngine.InputSystem.InputAction.CallbackContext _)
+    {
+        _jumpWasPressed = true;
     }
 }

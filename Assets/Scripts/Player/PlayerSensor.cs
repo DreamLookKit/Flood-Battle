@@ -1,6 +1,8 @@
+using FishNet.Object;
+using FishNet.Object.Synchronizing;
 using UnityEngine;
 [RequireComponent(typeof(PlayerController))]
-public class PlayerSensor : MonoBehaviour
+public class PlayerSensor : NetworkBehaviour
 {
     [Header("Detection Settings")]
     [SerializeField] private LayerMask groundLayer;     // Маска слоя Ground
@@ -11,12 +13,13 @@ public class PlayerSensor : MonoBehaviour
     [SerializeField] private float detectionRadius = 0.2f; // Радиус сферы детекции под ногами
     [SerializeField] private float landingDistance = 1.7f; // Дистанция до земли для срабатывания анимации приземления
     public enum PlayerState { Nothing, Raft, Object, Ground, Water }
-    public PlayerState CurrentPlayerChest { get; set; } = PlayerState.Nothing;
-    public PlayerState LastPlayerChest { get; set; } = PlayerState.Nothing;
-    public PlayerState CurrentPlayerLegs { get; set; } = PlayerState.Nothing;
-    public PlayerState LastPlayerLegs { get; set; } = PlayerState.Nothing;
-    public PlayerState CurrentPlayerBelowLegs { get; set; } = PlayerState.Nothing;
-    public PlayerState LastPlayerBelowLegs { get; set; } = PlayerState.Nothing;
+    // Объявляем современный синхронизируемый тип от FishNet
+    public readonly SyncVar<PlayerState> CurrentPlayerChest = new SyncVar<PlayerState>(PlayerState.Nothing);
+    public readonly SyncVar<PlayerState> LastPlayerChest = new SyncVar<PlayerState>(PlayerState.Nothing);
+    public readonly SyncVar<PlayerState> CurrentPlayerLegs = new SyncVar<PlayerState>(PlayerState.Nothing);
+    public readonly SyncVar<PlayerState> LastPlayerLegs = new SyncVar<PlayerState>(PlayerState.Nothing);
+    public readonly SyncVar<PlayerState> CurrentPlayerBelowLegs = new SyncVar<PlayerState>(PlayerState.Nothing);
+    public readonly SyncVar<PlayerState> LastPlayerBelowLegs = new SyncVar<PlayerState>(PlayerState.Nothing);
     private Collider myCollider;
     private Rigidbody rb;
     private Animator anim;
@@ -24,13 +27,6 @@ public class PlayerSensor : MonoBehaviour
     private readonly Collider[] hitCollidersChest = new Collider[4];
     private readonly Collider[] hitCollidersLegs = new Collider[4];
     private readonly RaycastHit[] hitCollidersLanding = new RaycastHit[4];
-    // ОБЪЯВЛЕНИЕ: Создаем ячейки для хранения числовых ID.
-    // readonly означает, что мы запишем туда число один раз и никто его случайно не изменит.
-    // static экономит память — эти ID будут общими для всех копий скрипта.
-    //private static readonly int _WaterHash = Animator.StringToHash("PlayerSensor|Water");
-    //private static readonly int _GroundHash = Animator.StringToHash("PlayerSensor|Ground");
-    //private static readonly int _BuoyantHash = Animator.StringToHash("PlayerSensor|Buoyant");
-    //private static readonly int LandingHash = Animator.StringToHash("PlayerSensor|Landing");
     private void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -39,56 +35,25 @@ public class PlayerSensor : MonoBehaviour
         if (anim != null)
             chestBone = anim.GetBoneTransform(HumanBodyBones.Chest);
     }
+    [Server] // Этот метод будет вызываться и работать СТРОГО на сервере!
     private void Update()
     {
-        //// Отправка в аниматор данные
-        //// 1. Если на уровне груди изменения по сравнению с предыдущим сохраненным флагом
-        //if (LastPlayerChest != CurrentPlayerChest)
-        //{
-        //    //Debug.Log($"Change layer near CHEST: {LastPlayerChest} -> {CurrentPlayerChest}");
-        //    anim.SetBool(_BuoyantHash, CurrentPlayerChest == PlayerState.Water);
-        //    LastPlayerChest = CurrentPlayerChest;
-        //}
-        //// 2. Если на уровне ног изменения по сравнению с предыдущим сохраненным флагом
-        //if (LastPlayerLegs != CurrentPlayerLegs)
-        //{
-        //    // Debug.Log($"Change layer near LEGS: {LastPlayerLegs} -> {CurrentPlayerLegs}");
-        //    // Выключаем то, из чего вышли
-        //    switch (LastPlayerLegs)
-        //    {
-        //        case PlayerState.Water: anim.SetBool(_WaterHash, false); break;
-        //        case PlayerState.Ground: anim.SetBool(_GroundHash, false); break;
-        //    }
-        //    // Включаем то, куда пришли
-        //    switch (CurrentPlayerLegs)
-        //    {
-        //        case PlayerState.Water: anim.SetBool(_WaterHash, true); break;
-        //        case PlayerState.Ground: anim.SetBool(_GroundHash, true); break;
-        //    }
-        //    LastPlayerLegs = CurrentPlayerLegs;
-        //}
-        //// 3. Если под ногами изменения по сравнению с предыдущим сохраненным флагом (для анимации Landing)
-        //if (LastPlayerBelowLegs != CurrentPlayerBelowLegs)
-        //{
-        //    //Debug.Log($"Change layer BELOW LEGS: {LastPlayerBelowLegs} -> {CurrentPlayerBelowLegs}");
-        //    // FOR TEST!
-        //    if (CurrentPlayerBelowLegs == PlayerState.Ground)
-        //        Debug.Log($"LANDING: {CurrentPlayerBelowLegs}");
-        //    anim.SetBool(LandingHash, CurrentPlayerBelowLegs == PlayerState.Ground);
-        //    LastPlayerBelowLegs = CurrentPlayerBelowLegs;
-        //}
+
     }
+    [Server] // Этот метод будет вызываться и работать СТРОГО на сервере!
     private void FixedUpdate()
     {
+        // Сервер сам пускает сферы под каждым игроком, считает физику
+        // и меняет SyncVar переменные через .Value
         // Проверка слоев
         // 1. Проверяем, вода у игрока на уровне гурди или нет - GetPlayerChest()
         int overlapSphereChest = Physics.OverlapSphereNonAlloc(
             GetPlayerChest(), detectionRadius, hitCollidersChest,
             waterLayer, QueryTriggerInteraction.Collide);
         if (overlapSphereChest > 0)
-            CurrentPlayerChest = PlayerState.Water;
+            CurrentPlayerChest.Value = PlayerState.Water;
         else
-            CurrentPlayerChest = PlayerState.Nothing;
+            CurrentPlayerChest.Value = PlayerState.Nothing;
         // 2. Проверяем, вода или земля на уровне ног - GetPlayerLegs()
         int overlapSphereLegs = Physics.OverlapSphereNonAlloc(
             GetPlayerLegs(0.1f), detectionRadius, hitCollidersLegs,
