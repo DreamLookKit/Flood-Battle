@@ -36,6 +36,13 @@ public class PlayerController : MonoBehaviour
     [Header("References")]
     [SerializeField] private Camera playerCamera;
     [SerializeField] private PlayerSensor playerSensor;
+    // Все нажатия детектятся в Update, а действия происходят в FixedUpdate
+    private bool _jumpWasPressed;  // Флаг-мостик между Update и FixedUpdate
+
+
+
+
+
     // Мы делаем ссылки на действия публичными, чтобы скрипт меню настроек мог получить к ним доступ
     public InputAction MoveAction { get; private set; }
     public InputAction LookAction { get; private set; }
@@ -52,12 +59,12 @@ public class PlayerController : MonoBehaviour
     // ОБЪЯВЛЕНИЕ: Создаем ячейки для хранения числовых ID.
     // readonly означает, что мы запишем туда число один раз и никто его случайно не изменит.
     // static экономит память — эти ID будут общими для всех копий скрипта.
-    private static readonly int _SpeedHash = Animator.StringToHash("PlayerController|Speed");
-    private static readonly int _IsCrouchedHash = Animator.StringToHash("PlayerController|IsCrouched");
-    private static readonly int _WaterHash = Animator.StringToHash("PlayerSensor|Water");
-    private static readonly int _GroundHash = Animator.StringToHash("PlayerSensor|Ground");
-    private static readonly int _BuoyantHash = Animator.StringToHash("PlayerSensor|Buoyant");
-    private static readonly int _LandingHash = Animator.StringToHash("PlayerSensor|Landing");
+    private static readonly int _SpeedHash = Animator.StringToHash("Speed");
+    private static readonly int _WaterHash = Animator.StringToHash("Water");
+    private static readonly int _GroundHash = Animator.StringToHash("Ground");
+    private static readonly int _BuoyantHash = Animator.StringToHash("Buoyant");
+    private static readonly int _IsCrouchedHash = Animator.StringToHash("IsCrouched");
+    private static readonly int _LandingHash = Animator.StringToHash("Landing");
     private float _cameraRotationX = 0f;
     //private float currentCameraY;   // Текущая локальная высота камеры
     private float _speed;            // Текущая скорость игрока
@@ -78,7 +85,11 @@ public class PlayerController : MonoBehaviour
             .With("Left", "<Keyboard>/a")   // Индекс привязки: 3
             .With("Right", "<Keyboard>/d"); // Индекс привязки: 4
         SprintAction = new InputAction("Sprint", binding: "<Keyboard>/leftShift");
+
+
         JumpAction = new InputAction("Jump", binding: "<Keyboard>/space");
+        JumpAction.performed += ctx => _jumpWasPressed = true;
+
         CrouchAction = new InputAction("Crouch", binding: "<Keyboard>/leftCtrl");
     }
     private void OnEnable()
@@ -119,6 +130,7 @@ public class PlayerController : MonoBehaviour
     // Графика и Логика (Привязана к FPS: 60, 100, 144 - неважно)
     private void Update()
     {
+        //🖱️ Детекция мыши
         if (Mouse.current != null)
         {
             // Мы получаем изменение положения мыши для текущего кадра (30f - компенсация медленного движения мыши)
@@ -130,7 +142,7 @@ public class PlayerController : MonoBehaviour
             _cameraRotationX = Mathf.Clamp(_cameraRotationX - mouseDelta.y, -85f, 85f); // Насколько сдвинуть камеру, отняв координапты мыши за текущий кадр, ограничив 85 градусами
             playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, 0f, 0f);
         }
-        // Настраиваем положение камеры, учитывая эффект дыхания
+        //🎥 Настраиваем положение камеры, учитывая эффект дыхания 
         if (playerCamera != null)
         {
             // Если двигаемся, качаем камеру быстрее. Если стоим - это плавное дыхание
@@ -142,28 +154,35 @@ public class PlayerController : MonoBehaviour
             newPos.y = _defaultY + Mathf.Sin(_timer) * currentAmount;
             playerCamera.transform.localPosition = newPos;
         }
-        // ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
+        //⌨ Детекция нажатий 
+        if (_playerSensor.CurrentPlayerLegs != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
+        {
+            if (JumpAction.WasPressedThisFrame())
+            {
+                _jumpWasPressed = true;
+            }
+        }
+
+        //🎬 ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
         if (anim != null)
         {
-            // Передаем скорость игрока
+            //🏃 Передаем скорость игрока
             if (CrouchAction.IsPressed())
                 anim.SetFloat(_SpeedHash, _speedForAnim, 0.1f, Time.deltaTime);
             else
                 anim.SetFloat(_SpeedHash, _speedForAnim);
             // Передаем положение стоит/присяд
             anim.SetBool(_IsCrouchedHash, CrouchAction.IsPressed());
-            // ДЕТЕКЦИЯ СЛОЕВ (ВОДА, ЗЕМЛЯ и тд)
+            //🌍 💧 ДЕТЕКЦИЯ СЛОЕВ (ВОДА, ЗЕМЛЯ и тд)
             // Если на уровне груди игрока изменения по сравнению с предыдущим сохраненным флагом
             if (_playerSensor.LastPlayerChest != _playerSensor.CurrentPlayerChest)
             {
-                //Debug.Log($"Change layer near CHEST: {LastPlayerChest} -> {CurrentPlayerChest}");
                 anim.SetBool(_BuoyantHash, _playerSensor.CurrentPlayerChest == PlayerState.Water);
                 _playerSensor.LastPlayerChest = _playerSensor.CurrentPlayerChest;
             }
             // Если на уровне ног изменения по сравнению с предыдущим сохраненным флагом
             if (_playerSensor.LastPlayerLegs != _playerSensor.CurrentPlayerLegs)
             {
-                // Debug.Log($"Change layer near LEGS: {LastPlayerLegs} -> {CurrentPlayerLegs}");
                 // Выключаем то, из чего вышли
                 switch (_playerSensor.LastPlayerLegs)
                 {
@@ -181,61 +200,46 @@ public class PlayerController : MonoBehaviour
             // Если под ногами изменения по сравнению с предыдущим сохраненным флагом (для анимации Landing)
             if (_playerSensor.LastPlayerBelowLegs != _playerSensor.CurrentPlayerBelowLegs)
             {
-                //Debug.Log($"Change layer BELOW LEGS: {LastPlayerBelowLegs} -> {CurrentPlayerBelowLegs}");
                 // FOR TEST!
-                if (_playerSensor.CurrentPlayerBelowLegs == PlayerState.Ground)
-                    Debug.Log($"LANDING: {_playerSensor.CurrentPlayerBelowLegs}");
+                //if (_playerSensor.CurrentPlayerBelowLegs == PlayerState.Ground)
+                    //Debug.Log($"LANDING: {_playerSensor.CurrentPlayerBelowLegs}");
                 anim.SetBool(_LandingHash, _playerSensor.CurrentPlayerBelowLegs == PlayerState.Ground);
                 _playerSensor.LastPlayerBelowLegs = _playerSensor.CurrentPlayerBelowLegs;
             }
-        }
-        // Передаем Jump и LongJump
-        if (!IsInWater() 
-        && _isGrounded 
-        && JumpAction.WasPressedThisFrame() 
-        && !CrouchAction.IsPressed() 
-        && anim != null) 
-        {
-            //if (_speed <= walkSpeed)
-            //{
-            //    anim.SetTrigger("Jump");
-            //    _currentJumpState = JumpState.InNormalJump; // Запомнили, что прыжок обычный
-            //    Debug.Log($"Jump Initialized");
-            //}
-            //else
-            //{
-            //    anim.SetTrigger("LongJump");
-            //    _currentJumpState = JumpState.InLongJump; // Запомнили, что прыжок длинный
-            //    Debug.Log("LongJump Initialized");
-            //}
         }
     }
     // Физическая сила всегда применяется в FixedUpdate (50 раз всекунду)
     private void FixedUpdate()
     {
-        RaycastHit groundHit;
-        _isGrounded = Physics.Raycast(GetObjectBottom(), Vector3.down, out groundHit, groundCheckDistance, groundLayer, QueryTriggerInteraction.Ignore);
         // Считаем чисто горизонтальную скорость (без учета прыжков/падения по Y)
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         // Считаем скорость путем слолжения векторов (основную скорость)
         _speed = horizontalVelocity.magnitude;
         // Логика изменения высоты коллайдера и камеры (только если мы НЕ в воде)
         // ВАЖНО! Вызывать функцию определения присяда ТОЛЬКО ДО настраивания положения камеры
-        if (!IsInWater())
+
+        if (_jumpWasPressed)
+        {
+            _rb.AddForce(Vector3.up * jumpForce, ForceMode.VelocityChange);
+            _jumpWasPressed = false;
+        }
+
+
+        if (_playerSensor.CurrentPlayerLegs != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
         {
             HandleCrouch(); // Присяд игрока
-            // СБРОС СОСТОЯНИЯ ПРИ КАСАНИИ ЗЕМЛИ
-            if (_isGrounded)
-            {
-                //currentJumpState = JumpState.Grounded;
-                // Механика прыжка на суше (если на суше, не в воде и не в присяде)
-                if (JumpAction.WasPressedThisFrame() && !CrouchAction.IsPressed())
-                    _rb.AddForce(Vector3.up * jumpForce, ForceMode.VelocityChange);
-            }
+            
+            // Механика прыжка на суше (если на суше, не в воде и не в присяде)
+            //if (_playerSensor.CurrentPlayerLegs == PlayerSensor.PlayerState.Ground
+            //&& JumpAction.WasPressedThisFrame()
+            //&& !CrouchAction.IsPressed())
+            //{ 
+            //    Debug.Log($"JUMP PRESSED");
+            //    _rb.AddForce(Vector3.up * jumpForce, ForceMode.VelocityChange);
+            //}
         }
         if (anim != null)
         {
-            // Передаем скорость в аниматор
             // ВМЕСТО кнопок смотрим на реальное направление движения персонажа!
             // Скалярное произведение (Dot Product) покажет, двигаемся мы по направлению взгляда или против него.
             float directionDot = Vector3.Dot(horizontalVelocity, transform.forward);
@@ -265,7 +269,6 @@ public class PlayerController : MonoBehaviour
             {
                 case (true, _):
                     Debug.Log("In water press ctrl");
-
                     // Нажата кнопка приседа — активно погружаемся на глубину
                     //Умножение на 0.4f - снизили скорость погружения
                     targetVelocityY = -waterVerticalSpeed * 0.3f;
