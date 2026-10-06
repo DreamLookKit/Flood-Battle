@@ -71,27 +71,27 @@ public class PlayerSensor : NetworkBehaviour
                 else
                     if (((raftLayer.value | objectLayer.value | groundLayer.value) & layer) != 0) foundGround = true;
             }
-            CurrentPlayerLegs = foundWater ? PlayerState.Water : foundGround ? PlayerState.Ground : PlayerState.Nothing;
+            CurrentPlayerLegs.Value = foundWater ? PlayerState.Water : foundGround ? PlayerState.Ground : PlayerState.Nothing;
         }
-        else CurrentPlayerLegs = PlayerState.Nothing;
+        else CurrentPlayerLegs.Value = PlayerState.Nothing;
         // 3. Находим землю под ногами игрока для анимации приземления
         int sphereCastLanding = Physics.SphereCastNonAlloc(
             GetPlayerLegs(), detectionRadius, Vector3.down, hitCollidersLanding, landingDistance, detectionMask, QueryTriggerInteraction.Ignore);
         if (sphereCastLanding > 0 && rb.linearVelocity.y < -3f)
-            CurrentPlayerBelowLegs = PlayerState.Ground;
-        else CurrentPlayerBelowLegs = PlayerState.Nothing;
+            CurrentPlayerBelowLegs.Value = PlayerState.Ground;
+        else CurrentPlayerBelowLegs.Value = PlayerState.Nothing;
     }
     private void OnDrawGizmosSelected()
     {
         // Отрисовываем тестовую сферу в груди игрока
-        Gizmos.color = CurrentPlayerChest switch
+        Gizmos.color = CurrentPlayerChest.Value switch
         {
             PlayerState.Water => Color.white,
             _ => Color.white
         };
         Gizmos.DrawWireSphere(GetPlayerChest(), detectionRadius);
         // Отрисовываем тестовую сферу в ногах игрока
-        Gizmos.color = CurrentPlayerLegs switch
+        Gizmos.color = CurrentPlayerLegs.Value switch
         {
             PlayerState.Ground => Color.green,
             PlayerState.Water => Color.blue,
@@ -99,7 +99,7 @@ public class PlayerSensor : NetworkBehaviour
         };
         Gizmos.DrawWireSphere(GetPlayerLegs(0.1f), detectionRadius);
         // Отрисовываем тестовую сферу ПОД ногами игрока
-        Gizmos.color = CurrentPlayerBelowLegs switch
+        Gizmos.color = CurrentPlayerBelowLegs.Value switch
         {
             PlayerState.Ground => Color.green,
             PlayerState.Water => Color.blue,
