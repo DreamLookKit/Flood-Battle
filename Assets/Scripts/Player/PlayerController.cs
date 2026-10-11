@@ -181,9 +181,7 @@ public class PlayerController : NetworkBehaviour
         if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
         {
             if (JumpAction.WasPressedThisFrame())
-            {
                 _jumpWasPressed = true;
-            }
         }
         //🎬 ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
         if (anim != null)
