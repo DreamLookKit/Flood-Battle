@@ -3,7 +3,8 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using FishNet.Object;
 using static PlayerSensor;
-
+using FishNet.Object.Prediction;
+using FishNet.Transporting;
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(CapsuleCollider))]
 
@@ -24,7 +25,6 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private float deceleration = 14f;
     [SerializeField][Range(0f, 1f)] private float airControlFactor = 0.15f;    //Для контроля прыжка
     [SerializeField] private float jumpForce = 5f;
-    [SerializeField] private float groundCheckDistance = 0.1f;
     [Header("Camera Settings")]
     [SerializeField] private float standHeight = 2f;        // Стандартная высота игрока
     [SerializeField] private float crouchHeight = 1.0f;     // Высота игрока в приседе
@@ -32,18 +32,10 @@ public class PlayerController : NetworkBehaviour
     [SerializeField][Range(0.5f, 1.0f)] private float cameraHeightRatio = 0.85f;   // Eye level (percentage of body height)
     [Header("Animation Settings")]
     [SerializeField] private Animator anim;
-    [SerializeField] private float landingAheadDistance = 1.7f;
-    [SerializeField] private LayerMask groundLayer;
     [Header("References")]
     [SerializeField] private Camera playerCamera;
-    [SerializeField] private PlayerSensor playerSensor;
     // Все нажатия детектятся в Update, а действия происходят в FixedUpdate
     private bool _jumpWasPressed;  // Флаг-мостик между Update и FixedUpdate
-
-
-
-
-
     // Мы делаем ссылки на действия публичными, чтобы скрипт меню настроек мог получить к ним доступ
     public InputAction MoveAction { get; private set; }
     public InputAction LookAction { get; private set; }
@@ -52,7 +44,6 @@ public class PlayerController : NetworkBehaviour
     public InputAction CrouchAction { get; private set; }
     private Rigidbody _rb;
     private CapsuleCollider _capsuleCollider;    // Ссылка для изменения высоты тела
-    //public CapsuleCollider PlayerCollider => _capsuleCollider; // Безопасная ссылка на CapsuleCollider
     private BuoyantObject _buoyantScript;
     private PlayerSensor _playerSensor;     //  Локальная переменная-ссылка на сторонний скрпит PlayerSensor.cs
     private enum JumpState { Grounded, InNormalJump, InLongJump, LandingProcessed }
@@ -72,7 +63,46 @@ public class PlayerController : NetworkBehaviour
     private float _speedForAnim;     // Текущая скорость игрока, которая будет передваться в аниматор с измененным знаком
     private float _defaultY = 0f;    // Стандартное положение камеры по оси Y
     private float _timer = 0f;
-    private bool _isGrounded;
+    public struct MoveData : IReplicateData
+    {
+        public Vector2 MoveInput;
+        public bool JumpPressed;
+        public bool SprintPressed;
+        public bool CrouchPressed;
+        // Конструктор для удобства заполнения
+        public MoveData(Vector2 moveInput, bool jumpPressed, bool sprintPressed, bool crouchPressed)
+        {
+            MoveInput = moveInput;
+            JumpPressed = jumpPressed;
+            SprintPressed = sprintPressed;
+            CrouchPressed = crouchPressed;
+            _tick = 0; // Обязательное поле для FishNet
+        }
+        // Внутренности FishNet для отслеживания сетевых тиков
+        private uint _tick;
+        public void Dispose() { }
+        public uint GetTick() => _tick;
+        public void SetTick(uint value) => _tick = value;
+    }
+    private void Start()
+    {
+        anim = GetComponentInChildren<Animator>();
+        _rb = GetComponent<Rigidbody>();
+        _capsuleCollider = GetComponent<CapsuleCollider>();      // Поиск нашего коллайдера
+        _buoyantScript = GetComponent<BuoyantObject>();          // Поиск плавучести
+        _playerSensor = GetComponent<PlayerSensor>();            // Кэшируем переменную-ссылку на PlayerSensor.cs
+        // Ищем аниматор на дочерней 3D-модели
+        // Автоматически находим камеру среди дочерних объектов, если она не была перетащена в Инспектор
+        if (playerCamera == null)
+        {
+            playerCamera = GetComponentInChildren<Camera>();
+            _defaultY = playerCamera.transform.localPosition.y;            // Записываем ссылку на камеру
+        }
+        // Блокируем курсор мыши в центре экрана, чтобы он не покидал окно игры
+        Cursor.lockState = CursorLockMode.Locked;
+        // Скрываем его
+        Cursor.visible = false;
+    }
     private void Awake()
     {
         // Создаем действие для обзора мышью
@@ -117,26 +147,6 @@ public class PlayerController : NetworkBehaviour
             JumpAction.performed -= _ => _jumpWasPressed = true;
         }
     }
-
-    private void Start()
-    {
-        anim = GetComponentInChildren<Animator>();
-        _rb = GetComponent<Rigidbody>(); 
-        _capsuleCollider = GetComponent<CapsuleCollider>();      // Поиск нашего коллайдера
-        _buoyantScript = GetComponent<BuoyantObject>();          // Поиск плавучести
-        _playerSensor = GetComponent<PlayerSensor>();            // Кэшируем переменную-ссылку на PlayerSensor.cs
-        // Ищем аниматор на дочерней 3D-модели
-        // Автоматически находим камеру среди дочерних объектов, если она не была перетащена в Инспектор
-        if (playerCamera == null)
-        {
-            playerCamera = GetComponentInChildren<Camera>();
-            _defaultY = playerCamera.transform.localPosition.y;            // Записываем ссылку на камеру
-        }
-        // Блокируем курсор мыши в центре экрана, чтобы он не покидал окно игры
-        Cursor.lockState = CursorLockMode.Locked;
-        // Скрываем его
-        Cursor.visible = false;
-    }
     // Графика и Логика (Привязана к FPS: 60, 100, 144 - неважно)
     private void Update()
     {
@@ -173,7 +183,6 @@ public class PlayerController : NetworkBehaviour
                 _jumpWasPressed = true;
             }
         }
-
         //🎬 ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
         if (anim != null)
         {
@@ -211,13 +220,35 @@ public class PlayerController : NetworkBehaviour
             // Если под ногами изменения по сравнению с предыдущим сохраненным флагом (для анимации Landing)
             if (_playerSensor.LastPlayerBelowLegs != _playerSensor.CurrentPlayerBelowLegs)
             {
-                // FOR TEST!
-                //if (_playerSensor.CurrentPlayerBelowLegs == PlayerState.Ground)
-                    //Debug.Log($"LANDING: {_playerSensor.CurrentPlayerBelowLegs}");
                 anim.SetBool(_LandingHash, _playerSensor.CurrentPlayerBelowLegs.Value == PlayerState.Ground);
                 _playerSensor.LastPlayerBelowLegs.Value = _playerSensor.CurrentPlayerBelowLegs.Value;
             }
         }
+    }
+    private void TimeManager_OnTick()
+    {
+        if (IsOwner)
+        {
+            // 1. Собираем ввод на клиенте
+            MoveData md = new MoveData(
+            MoveAction.ReadValue<Vector2>(),
+            _jumpWasPressed,
+            SprintAction.IsPressed(),
+            CrouchAction.IsPressed());
+            // 2. Отправляем на сервер и двигаем локально (Prediction)
+            ReplicateMove(md);
+            _jumpWasPressed = false;
+        }
+        else if (IsServerInitialized)
+        {
+            // Сервер симулирует движение на основе полученных данных
+            ReplicateMove(default);
+        }
+    }
+    [Replicate]
+    private void ReplicateMove(MoveData md, ReplicateState state = ReplicateState.Invalid, Channel channel = Channel.Unreliable)
+    {
+
     }
     // Физическая сила всегда применяется в FixedUpdate (50 раз всекунду)
     private void FixedUpdate()
@@ -229,18 +260,14 @@ public class PlayerController : NetworkBehaviour
         _speed = horizontalVelocity.magnitude;
         // Логика изменения высоты коллайдера и камеры (только если мы НЕ в воде)
         // ВАЖНО! Вызывать функцию определения присяда ТОЛЬКО ДО настраивания положения камеры
-
         if (_jumpWasPressed)
         {
             _rb.AddForce(Vector3.up * jumpForce, ForceMode.VelocityChange);
             _jumpWasPressed = false;
         }
-
-
         if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
         {
             HandleCrouch(); // Присяд игрока
-            
             // Механика прыжка на суше (если на суше, не в воде и не в присяде)
             //if (_playerSensor.CurrentPlayerLegs == PlayerSensor.PlayerState.Ground
             //&& JumpAction.WasPressedThisFrame()
@@ -269,13 +296,13 @@ public class PlayerController : NetworkBehaviour
         // ...inputVector.magnitude > 0 означает, что игрок жмет клавиши движения
         float currentRate = (inputVector.magnitude > 0) ? acceleration : deceleration;
         // Если мы НЕ на земле и НЕ в воде — срезаем силу торможения/разгона (для более длительного прыжка)
-        if (!_isGrounded && !IsInWater()) currentRate *= airControlFactor;
+        if (_playerSensor.CurrentPlayerLegs.Value == PlayerSensor.PlayerState.Nothing) currentRate *= airControlFactor;
         // Устанавливаем стандартную скорость хотьбы, тк пока не знаем, какие клавиши нажаты
         float currentSpeed = walkSpeed;
         // Важно: по умолчанию оставляем ту скорость погружения/всплытия, которую посчитал сам PhysX
         float targetVelocityY = _rb.linearVelocity.y;
-        // Если мы находимся в воде, инерция должна быть более «вязкой» (тормозим медленнее, разгоняемся тяжелее)
-        if (IsInWater())
+        // Если ноги находятся в воде, инерция должна быть более «вязкой» (тормозим медленнее, разгоняемся тяжелее)
+        if (_playerSensor.CurrentPlayerLegs.Value == PlayerSensor.PlayerState.Water)
         {
             switch (CrouchAction.IsPressed(), SprintAction.IsPressed())
             {
@@ -316,7 +343,7 @@ public class PlayerController : NetworkBehaviour
         float targetVelocityX = Mathf.MoveTowards(_rb.linearVelocity.x, normalVelocity.x, currentRate * Time.fixedDeltaTime);
         float targetVelocityZ = Mathf.MoveTowards(_rb.linearVelocity.z, normalVelocity.z, currentRate * Time.fixedDeltaTime);
         // Применяем скорость нативно
-        if (IsInWater() && !CrouchAction.IsPressed())
+        if (_playerSensor.CurrentPlayerLegs.Value == PlayerSensor.PlayerState.Water && !CrouchAction.IsPressed())
             // Если мы в воде и НЕ жмем Ctrl (погружение) — мы позволяем физике Архимеда свободно двигать игрока вверх/вниз!
             // Мы перезаписываем ТОЛЬКО горизонтальную скорость X и Z, не трогая Y!
             _rb.linearVelocity = new Vector3(targetVelocityX, _rb.linearVelocity.y, targetVelocityZ);
@@ -341,22 +368,12 @@ public class PlayerController : NetworkBehaviour
         // Высота глаз теперь всегда рассчитывается строго от пола
         _defaultY = currentHeight * cameraHeightRatio;
     }
-    private bool IsInWater()
-    {
-        return _buoyantScript != null && _buoyantScript.IsInWater;
-    }
     private Vector3 GetObjectBottom()
     {
         // Берем честную МИРОВУЮ позицию центра игрока
         Vector3 worldPos = transform.position;
         // Просто приподнимаем старт луча на 5 сантиметров вверх внутрь тела, как и раньше
         return new Vector3(worldPos.x, worldPos.y + 0.05f, worldPos.z);
-    }
-    // Проверка земли перед приземлением (если падаем вниз и до земли остается расстояние, допустимое для включение анимации landing)
-    private bool CheckLandingAhead()
-    {
-        if (_isGrounded) return true;
-        return Physics.Raycast(transform.position, Vector3.down, landingAheadDistance, groundLayer, QueryTriggerInteraction.Ignore);
     }
     private void OnJumpPerformed(UnityEngine.InputSystem.InputAction.CallbackContext _)
     {

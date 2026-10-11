@@ -46,14 +46,10 @@ public class BuoyantObject : MonoBehaviour
     private Rigidbody rb;
     private PlayerController pc; // Теперь эта ссылка видна ВСЕМ методам внутри этого файла!
     // Публичное свойство для проверки нахождения в воде
-    public bool IsInWater => _isInsideWater;     // Для всех объектов в воде
-    public bool ChestInWater => _isChestInWater; // Для игроков, включение анимации плавания при поднятии воды до груди
     private Collider myCollider;
     private RigidbodyConstraints originalConstraints;
     private Animator anim;
     private float _objectHeight;
-    private bool _isInsideWater = false;
-    private bool _isChestInWater = false;
     // Start
     private void Start()
     {
@@ -79,14 +75,10 @@ public class BuoyantObject : MonoBehaviour
         int numColliders = Physics.OverlapSphereNonAlloc(
             GetObjectBottom(), detectionRadius, hitColliders,
             waterLayerMask, QueryTriggerInteraction.Collide);
-        int numColliders2 = Physics.OverlapSphereNonAlloc(
-            GetChestPoint(), detectionRadius, hitColliders,
-            waterLayerMask, QueryTriggerInteraction.Collide);
         float waterSurfaceY = float.MinValue;
         // Цикл по твоему массиву хитов
         if (numColliders > 0)
         { // Если хоть что-то нашли в воде
-            _isInsideWater = true;
             waterSurfaceY = hitColliders[0].bounds.max.y; // Фикс определения уровня воды
             // Считаем базовую силу на одну точку. Делим общую силу Архимеда на количество точек.
             float shareForcePerPoint = (floatingPower * rb.mass * Mathf.Abs(Physics.gravity.y)) / buoyancyPoints.Length;
@@ -114,29 +106,15 @@ public class BuoyantObject : MonoBehaviour
                 }
             }
         }
-        else
-            _isInsideWater = false;
-        if (numColliders2 > 0)
-        {  //Если грудная клетка в воде
-            _isChestInWater = true;
-        }
-        else
-            _isChestInWater = false;
     }
-    /* private void OnDrawGizmosSelected(){
-        Gizmos.color = isInsideWater == true ? Color.blue : Color.white;
-        Gizmos.DrawWireSphere(GetObjectBottom(), detectionRadius);
-        if(pc != null && anim != null){
-            Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(GetChestPoint(), detectionRadius);
-        }
-    } */
+    // Для объектов
     private Vector3 GetObjectBottom()
     {
         if (myCollider != null)
             return new Vector3(transform.position.x, myCollider.bounds.min.y + 0.2f, transform.position.z);
         return transform.position;
     }
+    // Для игроков
     private Vector3 GetChestPoint()
     {
         if (pc != null && anim != null)
