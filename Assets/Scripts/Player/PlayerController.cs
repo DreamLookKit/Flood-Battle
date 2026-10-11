@@ -2,9 +2,7 @@ using FishNet;
 using FishNet.Object;
 using FishNet.Object.Prediction;
 using FishNet.Transporting;
-using Unity.Multiplayer.PlayMode;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using static PlayerSensor;
 [RequireComponent(typeof(Rigidbody))]
