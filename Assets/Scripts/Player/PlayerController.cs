@@ -175,7 +175,7 @@ public class PlayerController : NetworkBehaviour
             newPos.y = _defaultY + Mathf.Sin(_timer) * currentAmount;
             playerCamera.transform.localPosition = newPos;
         }
-        // ⌨ Детекция нажатий
+        // 🕹️ Детекция нажатий прыжка
         if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
         {
             if (JumpAction.WasPressedThisFrame())
@@ -193,14 +193,14 @@ public class PlayerController : NetworkBehaviour
                 anim.SetFloat(_SpeedHash, _speedForAnim);
             // Передаем положение стоит/присяд
             anim.SetBool(_IsCrouchedHash, CrouchAction.IsPressed());
-            //🌍 💧 ДЕТЕКЦИЯ СЛОЕВ (ВОДА, ЗЕМЛЯ и тд)
-            // Если на уровне груди игрока изменения по сравнению с предыдущим сохраненным флагом
+            //🔎 🌍 💧 💨ДЕТЕКЦИЯ СЛОЕВ (ВОДА, ЗЕМЛЯ и тд)
+            //🔎 Если на уровне груди игрока изменения по сравнению с предыдущим сохраненным флагом
             if (_playerSensor.LastPlayerChest != _playerSensor.CurrentPlayerChest)
             {
                 anim.SetBool(_BuoyantHash, _playerSensor.CurrentPlayerChest.Value == PlayerState.Water);
                 _playerSensor.LastPlayerChest.Value = _playerSensor.CurrentPlayerChest.Value;
             }
-            // Если на уровне ног изменения по сравнению с предыдущим сохраненным флагом
+            //🔎 Если на уровне ног изменения по сравнению с предыдущим сохраненным флагом
             if (_playerSensor.LastPlayerLegs != _playerSensor.CurrentPlayerLegs)
             {
                 // Выключаем то, из чего вышли
@@ -217,7 +217,7 @@ public class PlayerController : NetworkBehaviour
                 }
                 _playerSensor.LastPlayerLegs.Value = _playerSensor.CurrentPlayerLegs.Value;
             }
-            // Если под ногами изменения по сравнению с предыдущим сохраненным флагом (для анимации Landing)
+            //🔎 Если под ногами изменения по сравнению с предыдущим сохраненным флагом (для анимации Landing)
             if (_playerSensor.LastPlayerBelowLegs != _playerSensor.CurrentPlayerBelowLegs)
             {
                 anim.SetBool(_LandingHash, _playerSensor.CurrentPlayerBelowLegs.Value == PlayerState.Ground);
@@ -225,6 +225,7 @@ public class PlayerController : NetworkBehaviour
             }
         }
     }
+    //🌐 Синхронизация тиков по сети между клиентами
     private void TimeManager_OnTick()
     {
         if (IsOwner)
@@ -246,6 +247,7 @@ public class PlayerController : NetworkBehaviour
         }
     }
     [Replicate]
+    //🖥️ Выполнение на локальном клиенте
     private void ReplicateMove(MoveData md, ReplicateState state = ReplicateState.Invalid, Channel channel = Channel.Unreliable)
     {
 
@@ -354,6 +356,7 @@ public class PlayerController : NetworkBehaviour
             // Намертво центрируем модель внутри капсулы, блокируя любые инерционные сдвиги
             anim.transform.localPosition = new Vector3(0f, -0.01f, 0f);
     }
+    //🧎 Нажатие ctrl
     private void HandleCrouch()
     {
         float targetHeight = CrouchAction.IsPressed() ? crouchHeight : standHeight;
@@ -368,13 +371,7 @@ public class PlayerController : NetworkBehaviour
         // Высота глаз теперь всегда рассчитывается строго от пола
         _defaultY = currentHeight * cameraHeightRatio;
     }
-    private Vector3 GetObjectBottom()
-    {
-        // Берем честную МИРОВУЮ позицию центра игрока
-        Vector3 worldPos = transform.position;
-        // Просто приподнимаем старт луча на 5 сантиметров вверх внутрь тела, как и раньше
-        return new Vector3(worldPos.x, worldPos.y + 0.05f, worldPos.z);
-    }
+    //🤸 Детекция прыжка
     private void OnJumpPerformed(UnityEngine.InputSystem.InputAction.CallbackContext _)
     {
         _jumpWasPressed = true;
