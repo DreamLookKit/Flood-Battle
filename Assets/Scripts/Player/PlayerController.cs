@@ -63,6 +63,7 @@ public class PlayerController : NetworkBehaviour
     private float _speedForAnim;     // Текущая скорость игрока, которая будет передваться в аниматор с измененным знаком
     private float _defaultY = 0f;    // Стандартное положение камеры по оси Y
     private float _timer = 0f;
+    //📦 Структура, в который клиент упаковывает все нажатия
     public struct MoveData : IReplicateData
     {
         public Vector2 MoveInput;
@@ -77,6 +78,24 @@ public class PlayerController : NetworkBehaviour
             _tick = 0; // Обязательное поле для FishNet
         }
         // Внутренности FishNet для отслеживания сетевых тиков
+        private uint _tick;
+        public void Dispose() { }
+        public uint GetTick() => _tick;
+        public void SetTick(uint value) => _tick = value;
+    }
+    //📦 Структура, при помощи которой сервер серяет данные из ReplicateMove
+    public struct ReconcileData : IReconcileData
+    {
+        public Vector3 Position;
+        public Quaternion Rotation;
+        public Vector3 LinearVelocity;
+        public ReconcileData(Vector3 position, Quaternion rotation, Vector3 linearVelocity)
+        {
+            Position = position;
+            Rotation = rotation;
+            LinearVelocity = linearVelocity;
+            _tick = 0;
+        }
         private uint _tick;
         public void Dispose() { }
         public uint GetTick() => _tick;
@@ -269,17 +288,17 @@ public class PlayerController : NetworkBehaviour
         //🤸 Сетевая обработка прыжка на основе данных из md
         if (md.JumpPressed && _playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
             _rb.AddForce(Vector3.up * jumpForce, ForceMode.VelocityChange);
-        //🔄. Вычисляем физическое направление движения
+        //🔄 Вычисляем физическое направление движения
         Vector3 moveDir = (transform.forward * md.MoveInput.y + transform.right * md.MoveInput.x).normalized;
-        //🕹️❓ Определяем, что мы сейчас делаем: разгоняемся (WASD зажат) или тормозим (WASD отпущен)
+        //🐌❓ Определяем, что мы сейчас делаем: разгоняемся (WASD зажат) или тормозим (WASD отпущен)
         float currentRate = (md.MoveInput.magnitude > 0) ? acceleration : deceleration;
-        //💨🤸 Если мы НЕ на земле и НЕ в воде — срезаем силу торможения/разгона (для более длительного прыжка)
+        //🐌 Если мы НЕ на земле и НЕ в воде — срезаем силу торможения/разгона (для более длительного прыжка)
         if (_playerSensor.CurrentPlayerLegs.Value == PlayerSensor.PlayerState.Nothing) currentRate *= airControlFactor;
         //❯❯❯❯🏃 Устанавливаем стандартную скорость ходьбыаем
         float currentSpeed = walkSpeed;
-        //🔼🔽 Сохраняем текущую вертикальную скорость
+        //❯❯❯❯🔼 Сохраняем текущую вертикальную скорость
         float targetVelocityY = _rb.linearVelocity.y;
-        //❯❯❯❯💧 Если ноги находятся в воде, инерция должна быть более «вязкой» (тормозим медленнее, разгоняемся тяжелее)
+        //💧 Если мы в воде
         if (_playerSensor.CurrentPlayerLegs.Value == PlayerSensor.PlayerState.Water)
         {
             switch (md.CrouchPressed, md.SprintPressed)
@@ -302,7 +321,7 @@ public class PlayerController : NetworkBehaviour
                     break;
             }
         }
-        // Если мы на суше
+        //🌍 Если мы на суше
         else
         {
             currentSpeed = (md.CrouchPressed, md.SprintPressed, md.MoveInput.y >= 0) switch
@@ -312,7 +331,7 @@ public class PlayerController : NetworkBehaviour
                 _ => walkSpeed    // В остальных случаях
             };
         }
-        ////❯❯❯❯🔙 Окончательное урезание скорости в воде и на суше, если движение задом
+        //🐌🔙 Окончательное урезание скорости в воде и на суше, если движение задом
         if (md.MoveInput.y < -0.1f) currentSpeed *= 0.5f;
         //❯❯❯❯✅ Идеальная горизонтальная скорость, которую хочет получить игрок прямо сейчас
         Vector3 normalVelocity = moveDir * currentSpeed;
@@ -331,8 +350,21 @@ public class PlayerController : NetworkBehaviour
         if (anim != null)
             // Намертво центрируем модель внутри капсулы, блокируя любые инерционные сдвиги
             anim.transform.localPosition = new Vector3(0f, -0.01f, 0f);
+        if (IsServerInitialized)
+        {
+            ReconcileData rd = new ReconcileData(transform.position, transform.rotation, _rb.linearVelocity);
+            ReconcileMove(rd);
+        }
     }
-    //🧎 Нажатие ctrl
+    [Reconcile]
+    //📋 Метод проверки игрока: позиция, угол поворота, скороость
+    private void ReconcileMove(ReconcileData rd, Channel channel = Channel.Unreliable)
+    {
+        transform.position = rd.Position;
+        transform.rotation = rd.Rotation;
+        _rb.linearVelocity = rd.LinearVelocity;
+    }
+    //🦵🏻🎥 Нажатие ctrl, камера визуально плавно опускается на клиенте
     private void HandleCrouch()
     {
         // Определяем целевую высоту камеры на основе ввода
@@ -341,6 +373,7 @@ public class PlayerController : NetworkBehaviour
         float lerpFactor = 1f - Mathf.Exp(-crouchSmoothTime * Time.deltaTime);
         _defaultY = Mathf.Lerp(_defaultY, targetCameraY, lerpFactor);
     }
+    //🦵🏻🌐 Нажатие ctrl, коллайдер игрока жестко опускается на клиенте, а сервер подхватывает и опускает у себя тоже
     private void SetColliderHeightDirect(bool isCrouched)
     {
         // Выставляем жесткую высоту коллайдера в зависимости от флага из MoveData
