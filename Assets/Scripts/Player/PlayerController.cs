@@ -144,12 +144,12 @@ public class PlayerController : NetworkBehaviour
         // Включаем импуты только если мы хозяева этого персонажа
         if (IsOwner)
         {
-            MoveAction.Enable();
-            JumpAction.Enable();
-            SprintAction.Enable();
-            CrouchAction.Enable();
-            // Подписываемя на прыжок
-            JumpAction.performed += OnJumpPerformed;
+            if (MoveAction != null) MoveAction.Enable();
+            if (JumpAction != null) JumpAction.Enable();
+            if (SprintAction != null) SprintAction.Enable();
+            if (CrouchAction != null) CrouchAction.Enable();
+
+            if (JumpAction != null) JumpAction.performed += OnJumpPerformed;
         }
     }
     public override void OnStopClient()
@@ -246,11 +246,7 @@ public class PlayerController : NetworkBehaviour
             }
             //🕹 Детекция нажатий
             if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
-            {
                 HandleCrouch();
-                if (JumpAction.WasPressedThisFrame())
-                    _jumpWasPressed = true;
-            }
         }
     }
     //🌐 Синхронизация тиков по сети между клиентами
@@ -385,8 +381,10 @@ public class PlayerController : NetworkBehaviour
         _capsuleCollider.center = new Vector3(0f, targetHeight/2f, 0f);
     }
     //🤸 Детекция прыжка
-    private void OnJumpPerformed(UnityEngine.InputSystem.InputAction.CallbackContext _)
+    private void OnJumpPerformed(InputAction.CallbackContext context)
     {
-        _jumpWasPressed = true;
+        // Если ноги не в воде — взводим флаг прыжка для следующего сетевого тика
+        if (_playerSensor != null && _playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
+            _jumpWasPressed = true;
     }
 }
