@@ -196,14 +196,8 @@ public class PlayerController : NetworkBehaviour
             newPos.y = _defaultY + Mathf.Sin(_timer) * currentAmount;
             playerCamera.transform.localPosition = newPos;
         }
-        // 🕹️🤸 Детекция нажатий прыжка
-        if (_playerSensor != null && _playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
-        {
-            if (JumpAction.WasPressedThisFrame())
-                _jumpWasPressed = true;
-        }
         //🎬 ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
-        if (anim != null)
+        if (anim != null && _playerSensor != null)
         {
             // ВМЕСТО кнопок смотрим на реальное направление движения персонажа!
             // Вместо создания нового вектора, просто используем текущую скорость Rigidbody прямо в формуле
@@ -222,7 +216,7 @@ public class PlayerController : NetworkBehaviour
             anim.SetBool(_IsCrouchedHash, CrouchAction.IsPressed());
             //🔎 🌍 💧 💨ДЕТЕКЦИЯ СЛОЕВ (ВОДА, ЗЕМЛЯ и тд)
             //🔎 Если на уровне груди игрока изменения по сравнению с предыдущим сохраненным флагом
-            if (_playerSensor != null && _playerSensor.LastPlayerChest.Value != _playerSensor.CurrentPlayerChest.Value)
+            if (_playerSensor.LastPlayerChest.Value != _playerSensor.CurrentPlayerChest.Value)
             {
                 anim.SetBool(_BuoyantHash, _playerSensor.CurrentPlayerChest.Value == PlayerState.Water);
                 _playerSensor.LastPlayerChest.Value = _playerSensor.CurrentPlayerChest.Value;
@@ -249,11 +243,15 @@ public class PlayerController : NetworkBehaviour
             {
                 anim.SetBool(_LandingHash, _playerSensor.CurrentPlayerBelowLegs.Value == PlayerState.Ground);
                 _playerSensor.LastPlayerBelowLegs.Value = _playerSensor.CurrentPlayerBelowLegs.Value;
-            }   
+            }
+            //🕹 Детекция нажатий
+            if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
+            {
+                HandleCrouch();
+                if (JumpAction.WasPressedThisFrame())
+                    _jumpWasPressed = true;
+            }
         }
-        //🧎 Если ноги не в воде - проверяем позицию колллайдера для визуального присяда модели
-        if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
-            HandleCrouch();
     }
     //🌐 Синхронизация тиков по сети между клиентами
     private void TimeManager_OnTick()
