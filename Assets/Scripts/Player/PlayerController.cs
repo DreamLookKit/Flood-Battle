@@ -350,11 +350,6 @@ public class PlayerController : NetworkBehaviour
         if (anim != null)
             // Намертво центрируем модель внутри капсулы, блокируя любые инерционные сдвиги
             anim.transform.localPosition = new Vector3(0f, -0.01f, 0f);
-        if (IsServerInitialized)
-        {
-            ReconcileData rd = new ReconcileData(transform.position, transform.rotation, _rb.linearVelocity);
-            ReconcileMove(rd);
-        }
     }
     [Reconcile]
     //📋 Метод проверки игрока: позиция, угол поворота, скороость
@@ -364,6 +359,15 @@ public class PlayerController : NetworkBehaviour
         transform.rotation = rd.Rotation;
         _rb.linearVelocity = rd.LinearVelocity;
     }
+    public override void CreateReconcile()
+    {
+        base.CreateReconcile();
+        // Создаем структуру сверки данных прямо здесь
+        ReconcileData rd = new ReconcileData(transform.position, transform.rotation, _rb.linearVelocity);
+        // И сразу же вызываем наш метод сверки, как того требует ошибка
+        ReconcileMove(rd);
+    }
+
     //🦵🏻🎥 Нажатие ctrl, камера визуально плавно опускается на клиенте
     private void HandleCrouch()
     {
