@@ -197,7 +197,7 @@ public class PlayerController : NetworkBehaviour
             playerCamera.transform.localPosition = newPos;
         }
         // 🕹️🤸 Детекция нажатий прыжка
-        if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
+        if (_playerSensor != null && _playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
         {
             if (JumpAction.WasPressedThisFrame())
                 _jumpWasPressed = true;
@@ -222,13 +222,13 @@ public class PlayerController : NetworkBehaviour
             anim.SetBool(_IsCrouchedHash, CrouchAction.IsPressed());
             //🔎 🌍 💧 💨ДЕТЕКЦИЯ СЛОЕВ (ВОДА, ЗЕМЛЯ и тд)
             //🔎 Если на уровне груди игрока изменения по сравнению с предыдущим сохраненным флагом
-            if (_playerSensor.LastPlayerChest != _playerSensor.CurrentPlayerChest)
+            if (_playerSensor != null && _playerSensor.LastPlayerChest.Value != _playerSensor.CurrentPlayerChest.Value)
             {
                 anim.SetBool(_BuoyantHash, _playerSensor.CurrentPlayerChest.Value == PlayerState.Water);
                 _playerSensor.LastPlayerChest.Value = _playerSensor.CurrentPlayerChest.Value;
             }
             //🔎 Если на уровне ног изменения по сравнению с предыдущим сохраненным флагом
-            if (_playerSensor.LastPlayerLegs != _playerSensor.CurrentPlayerLegs)
+            if (_playerSensor.LastPlayerLegs.Value != _playerSensor.CurrentPlayerLegs.Value)
             {
                 // Выключаем то, из чего вышли
                 switch (_playerSensor.LastPlayerLegs.Value)
