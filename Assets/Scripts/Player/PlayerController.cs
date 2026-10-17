@@ -58,11 +58,12 @@ public class PlayerController : NetworkBehaviour
     private static readonly int _IsCrouchedHash = Animator.StringToHash("IsCrouched");
     private static readonly int _LandingHash = Animator.StringToHash("Landing");
     private float _cameraRotationX = 0f;
+    private float _cameraRotationY = 0f;
     //private float currentCameraY;   // Текущая локальная высота камеры
     private float _speed;            // Текущая скорость игрока
     private float _speedForAnim;     // Текущая скорость игрока, которая будет передваться в аниматор с измененным знаком
     private float _defaultY = 0f;    // Стандартное положение камеры по оси Y
-    private float _timer = 0f;
+    private float _timer = 0f;  
     //📦 Структура, в который клиент упаковывает все нажатия
     public struct MoveData : IReplicateData
     {
@@ -89,11 +90,13 @@ public class PlayerController : NetworkBehaviour
         public Vector3 Position;
         public Quaternion Rotation;
         public Vector3 LinearVelocity;
-        public ReconcileData(Vector3 position, Quaternion rotation, Vector3 linearVelocity)
+        public float CameraRotationY;
+        public ReconcileData(Vector3 position, Quaternion rotation, Vector3 linearVelocity, float cameraRotationY)
         {
             Position = position;
             Rotation = rotation;
             LinearVelocity = linearVelocity;
+            CameraRotationY = cameraRotationY;
             _tick = 0;
         }
         private uint _tick;
@@ -177,12 +180,13 @@ public class PlayerController : NetworkBehaviour
         {
             // Мы получаем изменение положения мыши для текущего кадра (30f - компенсация медленного движения мыши)
             Vector2 mouseDelta = LookAction.ReadValue<Vector2>() * (mouseSensivity * 30f) * Time.deltaTime;
+            // Считаем углы автономно от физики transform-a!
+            _cameraRotationX = Mathf.Clamp(_cameraRotationX - mouseDelta.y, - 85, 85f);
+            _cameraRotationY += mouseDelta.x; // Копим поворот влево-вправо
             // Поворачиваем туловище влево и вправо
             transform.Rotate(Vector3.up * mouseDelta.x);
-            // Наклоняем камеру вверх и вниз
-            // Насколько наклонить камеру, отняв координапты мыши за текущий кадр, ограничив 85 градусами
-            _cameraRotationX = Mathf.Clamp(_cameraRotationX - mouseDelta.y, -85f, 85f); // Насколько сдвинуть камеру, отняв координапты мыши за текущий кадр, ограничив 85 градусами
-            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, 0f, 0f);
+            // Применяем локально
+            transform.rotation = Quaternion.Euler(0f, _cameraRotationY, 0f); // Перезаписываем жестко, чтобы Reconcile не сбрасывал в ноль
         }
         //🎥 Настраиваем положение камеры, учитывая эффект дыхания 
         if (playerCamera != null)
@@ -357,7 +361,7 @@ public class PlayerController : NetworkBehaviour
     {
         base.CreateReconcile();
         // Создаем структуру сверки данных прямо здесь
-        ReconcileData rd = new ReconcileData(transform.position, transform.rotation, _rb.linearVelocity);
+        ReconcileData rd = new ReconcileData(transform.position, transform.rotation, _rb.linearVelocity, _cameraRotationY);
         // И сразу же вызываем наш метод сверки, как того требует ошибка
         ReconcileMove(rd);
     }
