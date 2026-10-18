@@ -103,12 +103,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a86c0ce2de05f2841b69bf28b33565b5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
-  _componentIndexCache: 255
+  _componentIndexCache: 0
   _addedNetworkObject: {fileID: 2907166410746095809}
-  _networkObjectCache: {fileID: 0}
+  _networkObjectCache: {fileID: 2907166410746095809}
   breathSpeed: 5
   breathAmplitude: 0.02
   walkSpeed: 2
+  backSpeed: 1.7
   sprintSpeed: 5
   crouchSpeed: 1.5
   waterVerticalSpeed: 5
@@ -117,18 +118,12 @@ MonoBehaviour:
   deceleration: 14
   airControlFactor: 0.15
   jumpForce: 4
-  groundCheckDistance: 0.1
   standHeight: 2
   crouchHeight: 1
   crouchSmoothTime: 8
   cameraHeightRatio: 0.85
   anim: {fileID: 0}
-  landingAheadDistance: 1.7
-  groundLayer:
-    serializedVersion: 2
-    m_Bits: 8
   playerCamera: {fileID: 0}
-  playerSensor: {fileID: 0}
 --- !u!114 &9024275895446332074
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -165,6 +160,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 118e716b64b365f499d5821b1f5436f4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerSensor
+  _componentIndexCache: 1
+  _addedNetworkObject: {fileID: 2907166410746095809}
+  _networkObjectCache: {fileID: 2907166410746095809}
   groundLayer:
     serializedVersion: 2
     m_Bits: 8
@@ -228,7 +226,10 @@ MonoBehaviour:
   <PredictedSpawn>k__BackingField: {fileID: 0}
   <PredictedOwner>k__BackingField: {fileID: 0}
   NetworkBehaviours:
+  - {fileID: -6055492577290771859}
+  - {fileID: 4414167849872062874}
   - {fileID: -5381149769867746890}
+  - {fileID: 2720145554047570560}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
   RuntimeParentNetworkBehaviour: {fileID: 0}
@@ -239,7 +240,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584103674097751645
+  _initializedTimestamp: -8584092629528543274
 --- !u!114 &-5381149769867746890
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -252,7 +253,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8a6a39c46bf52104ba8efe3100bce3f7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FishNet.Runtime::FishNet.Object.EmptyNetworkBehaviour
-  _componentIndexCache: 0
+  _componentIndexCache: 2
   _addedNetworkObject: {fileID: 2907166410746095809}
   _networkObjectCache: {fileID: 2907166410746095809}
 --- !u!114 &2720145554047570560
@@ -267,9 +268,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a2836e36774ca1c4bbbee976e17b649c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FishNet.Runtime::FishNet.Component.Transforming.NetworkTransform
-  _componentIndexCache: 255
+  _componentIndexCache: 3
   _addedNetworkObject: {fileID: 2907166410746095809}
-  _networkObjectCache: {fileID: 0}
+  _networkObjectCache: {fileID: 2907166410746095809}
   _componentConfiguration: 0
   _synchronizeParent: 0
   _packing:

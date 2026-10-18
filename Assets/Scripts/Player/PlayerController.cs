@@ -21,6 +21,7 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private float breathAmplitude = 0.02f;   // Амплитуда (насколько сильно качается взгляд)
     [Header("Movement Speed Settings")]
     [SerializeField] private float walkSpeed = 2f;
+    [SerializeField] private float backSpeed = 1.7f;
     [SerializeField] private float sprintSpeed = 5f;
     [SerializeField] private float crouchSpeed = 1.5f;
     [SerializeField] private float waterVerticalSpeed = 5f;
@@ -232,7 +233,7 @@ public class PlayerController : NetworkBehaviour
                 // Если W не зажата, а зажата S (inputMove.y отрицательный) - жестко инвертируем знак
                 // Никакой физики Rigidbody, только честное направление нажатия кнопки
                 if (inputMove.y < -0.05f)
-                    targetSpeed = -targetSpeed * 0.5f;  //Задом ходим в 2 раза медленнее
+                    targetSpeed = -backSpeed;  //Задом ходим медленнее
             }
             // Плавно подтягиваем текущее значание анимации к целевому
             // Используем Time.deltatime, чтобы сглаживание шло частоте кадров монитора
@@ -326,7 +327,7 @@ public class PlayerController : NetworkBehaviour
             };
         }
         // Окончательное урезание скорости в воде и на суше, если движение задом
-        if (md.MoveInput.y < -0.1f) currentSpeed *= 0.5f;
+        if (md.MoveInput.y < -0.1f) currentSpeed = backSpeed;
         // Идеальная горизонтальная скорость, которую хочет получить игрок прямо сейчас
         Vector3 normalVelocity = moveDir * currentSpeed;
         // ПЛАВНО подтягиваем ТЕКУЩУЮ скорость Rigidbody для плавности старта после нажатия клавиш
