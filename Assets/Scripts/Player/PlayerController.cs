@@ -1,9 +1,13 @@
 using FishNet;
+using FishNet.Example.ColliderRollbacks;
 using FishNet.Object;
 using FishNet.Object.Prediction;
 using FishNet.Transporting;
 using UnityEngine;
 using UnityEngine.InputSystem;
+// TEST
+using TMPro;
+//
 using static PlayerSensor;
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(CapsuleCollider))]
@@ -34,6 +38,9 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private Animator anim;
     [Header("References")]
     [SerializeField] private Camera playerCamera;
+    // TEST
+    private TMP_Text _debugSpeedText;
+    //
     // Все нажатия детектятся в Update, а действия происходят в FixedUpdate
     private bool _jumpWasPressed;  // Флаг-мостик между Update и FixedUpdate
     // Мы делаем ссылки на действия публичными, чтобы скрипт меню настроек мог получить к ним доступ
@@ -55,7 +62,6 @@ public class PlayerController : NetworkBehaviour
     private JumpState _currentJumpState = JumpState.Grounded;
     private float _cameraRotationX = 0f;
     private float _cameraRotationY = 0f;
-    //private float currentCameraY;   // Текущая локальная высота камеры
     private float _speed;            // Текущая скорость игрока
     private float _speedForAnim;     // Текущая скорость игрока, которая будет передваться в аниматор с измененным знаком
     private float _defaultY = 0f;    // Стандартное положение камеры по оси Y
@@ -151,6 +157,13 @@ public class PlayerController : NetworkBehaviour
             if (CrouchAction != null) CrouchAction.Enable();
             if (JumpAction != null) JumpAction.performed += OnJumpPerformed;
         }
+        // TEST
+        GameObject textObj = GameObject.Find("DebugSpeedText");
+        if (textObj != null)
+            _debugSpeedText = textObj.GetComponent<TMP_Text>();
+        else
+            Debug.LogWarning("[Speed Debug] Не найден объект 'DebugSpeedText' на сцене! Индикатор работать не будет.");
+        //
     }
     public override void OnStopClient()
     {
@@ -183,19 +196,16 @@ public class PlayerController : NetworkBehaviour
             _cameraRotationY += mouseDelta.x; // Копим поворот влево-вправо
             // Поворачиваем туловище влево и вправо
             transform.Rotate(Vector3.up * mouseDelta.x);
+            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, 0f, 0f);
             // Применяем локально
             transform.rotation = Quaternion.Euler(0f, _cameraRotationY, 0f); // Перезаписываем жестко, чтобы Reconcile не сбрасывал в ноль
         }
-        // Настраиваем положение камеры, учитывая эффект дыхания 
+        // Настраиваем положение камеры
         if (playerCamera != null)
         {
-            // Если двигаемся, качаем камеру быстрее. Если стоим - это плавное дыхание
-            float currentSpeed = _speed > 0.1f ? breathSpeed * _speed / 2f : breathSpeed;
-            float currentAmount = _speed > 0.1f ? breathAmplitude * _speed / 2f : breathAmplitude;
-            _timer += Time.deltaTime * currentSpeed;
             // Сдвигаем камеру по синусоиде вверх-вниз относительно дефолтной высоты
             Vector3 newPos = playerCamera.transform.localPosition;
-            newPos.y = _defaultY + Mathf.Sin(_timer) * currentAmount;
+            newPos.y = _defaultY;
             playerCamera.transform.localPosition = newPos;
         }
         // ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
@@ -214,6 +224,9 @@ public class PlayerController : NetworkBehaviour
                 anim.SetFloat(_SpeedHash, _speedForAnim, 0.1f, Time.deltaTime);
             else
                 anim.SetFloat(_SpeedHash, _speedForAnim);
+            // TEST
+            _debugSpeedText.text = $"Speed (REAL): {_speed:F2}\n(For ANIM): {_speedForAnim:F2}";
+            //
             // Передаем положение стоит/присяд
             anim.SetBool(_IsCrouchedHash, CrouchAction.IsPressed());
             // ДЕТЕКЦИЯ СЛОЕВ (ВОДА, ЗЕМЛЯ и тд)
@@ -240,9 +253,6 @@ public class PlayerController : NetworkBehaviour
             // Вызываем репликацию (клиент выполнит локально, а пакет улетит на сервер)
             ReplicateMove(md);
         }
-        //else if (IsServerInitialized)
-        //    // Если это сервер — он тупо ждет пакеты от клиентов и симулирует их
-        //    ReplicateMove(default);
     }
     [Replicate]
     // Выполнение на локальном клиенте
@@ -250,7 +260,7 @@ public class PlayerController : NetworkBehaviour
     {
         // Мгновенно меняем высоту физического коллайдера на сервере и клиенте под текущий тик
         SetColliderHeightDirect(md.CrouchPressed);
-        //❯❯❯❯ Считаем текущую горизонтальную скорость тела игрока
+        // Считаем текущую горизонтальную скорость тела игрока
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         _speed = horizontalVelocity.magnitude;
         // Сетевая обработка прыжка на основе данных из md
@@ -269,10 +279,10 @@ public class PlayerController : NetworkBehaviour
         // Если мы в воде
         if (_playerSensor.CurrentPlayerLegs.Value == PlayerSensor.PlayerState.Water)
         {
+            Debug.Log("In water");
             switch (md.CrouchPressed, md.SprintPressed)
             {
                 case (true, _):
-                    Debug.Log("In water press ctrl");
                     // Нажата кнопка приседа — активно погружаемся на глубину
                     //Умножение на 0.4f - снизили скорость погружения
                     targetVelocityY = -waterVerticalSpeed * 0.3f;

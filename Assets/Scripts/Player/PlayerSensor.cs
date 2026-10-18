@@ -72,7 +72,7 @@ public class PlayerSensor : NetworkBehaviour
             || anim == null) return;// Если аниматор не найден
         anim.SetBool(_LandingHash, next == PlayerState.Ground);
     }
-        [Server] // Этот метод будет вызываться и работать СТРОГО на сервере!
+    [Server] // Этот метод будет вызываться и работать СТРОГО на сервере!
     private void FixedUpdate()
     {
         // Сервер сам пускает сферы под каждым игроком, считает физику
