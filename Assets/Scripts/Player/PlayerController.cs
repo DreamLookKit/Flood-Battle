@@ -216,28 +216,36 @@ public class PlayerController : NetworkBehaviour
         // ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
         if (anim != null && _playerSensor != null)
         {
-            // ВМЕСТО кнопок смотрим на реальное направление движения персонажа!
-            // Вместо создания нового вектора, просто используем текущую скорость Rigidbody прямо в формуле
-            float directionDot = Vector3.Dot(new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z), transform.forward);
-            // Создаем локальную скорость, чтобы глобальную не трогать
-            _speedForAnim = _speed;
-            // Если результат меньше нуля, значит физическое тело движется СПИНОЙ вперед
-            if (directionDot < -0.05f)
-                _speedForAnim = -_speedForAnim; // Задом идем медленнее
-            //❯❯❯❯🎬 Передаем скорость игрока в аниматор
-            if (CrouchAction.IsPressed())
-                anim.SetFloat(_SpeedHash, _speedForAnim, 0.1f, Time.deltaTime);
-            else
-                anim.SetFloat(_SpeedHash, _speedForAnim);
-            // TEST
-            _debugSpeedText.text = $"Speed (REAL): {_speed:F2}\n(For ANIM): {_speedForAnim:F2}";
-            //
+            // Берем чистый инпут WASD, нажатый в этом кадре (он всегда идеален)
+            Vector2 inputMove = MoveAction.ReadValue<Vector2>();
+            // Рассчитываем виртуальную целевую скорость, котолрую хочет игрок
+            float targetSpeed = 0f;
+            if (inputMove.magnitude > 0.05f)
+            {
+                // Выбираем базовую скорсть в зависимости от зажатых кнопок
+                if (CrouchAction.IsPressed())
+                    targetSpeed = crouchSpeed;
+                else if (SprintAction.IsPressed() && inputMove.y >= 0f) // Спринт только вперд
+                    targetSpeed = sprintSpeed;
+                else
+                    targetSpeed = walkSpeed;
+                // Если W не зажата, а зажата S (inputMove.y отрицательный) - жестко инвертируем знак
+                // Никакой физики Rigidbody, только честное направление нажатия кнопки
+                if (inputMove.y < -0.05f)
+                    targetSpeed = -targetSpeed * 0.5f;  //Задом ходим в 2 раза медленнее
+            }
+            // Плавно подтягиваем текущее значание анимации к целевому
+            // Используем Time.deltatime, чтобы сглаживание шло частоте кадров монитора
+            _speedForAnim = Mathf.MoveTowards(_speedForAnim, targetSpeed, acceleration * Time.deltaTime);
+            // Передаем плавное значение в Аниматор
+            // Дополнительно используем встроенный демпер Unity (Damp Time = 0.05f), чтобы сгладить микро-шаги
+            anim.SetFloat(_SpeedHash, _speedForAnim, 0.05f, Time.deltaTime);
             // Передаем положение стоит/присяд
             anim.SetBool(_IsCrouchedHash, CrouchAction.IsPressed());
-            // ДЕТЕКЦИЯ СЛОЕВ (ВОДА, ЗЕМЛЯ и тд)
-            // Если на уровне груди игрока изменения по сравнению с предыдущим сохраненным флагом
-            // Детекция нажатий
-            if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
+            if (_debugSpeedText != null)
+                _debugSpeedText.text = $"Real speed (Raw): {_speed:F2}\nAnim speed (Smooth): {_speedForAnim:F2}";
+            // Детекция приседа
+            if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
                 HandleCrouch();
         }
     }
