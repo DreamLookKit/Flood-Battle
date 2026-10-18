@@ -12,21 +12,26 @@ public class PlayerSensor : NetworkBehaviour
     [SerializeField] private LayerMask detectionMask;   // Маска слоев (Земля, Плот, Объект, Вода)
     [SerializeField] private float detectionRadius = 0.2f; // Радиус сферы детекции под ногами
     [SerializeField] private float landingDistance = 1.7f; // Дистанция до земли для срабатывания анимации приземления
+    // ОБЪЯВЛЕНИЕ: Создаем ячейки для хранения числовых ID.
+    // readonly означает, что мы запишем туда число один раз и никто его случайно не изменит.
+    // static экономит память — эти ID будут общими для всех копий скрипта.
+    private static readonly int _WaterHash = Animator.StringToHash("Water");
+    private static readonly int _GroundHash = Animator.StringToHash("Ground");
+    private static readonly int _BuoyantHash = Animator.StringToHash("Buoyant");
+    private static readonly int _LandingHash = Animator.StringToHash("Landing");
     public enum PlayerState { Nothing, Raft, Object, Ground, Water }
-    // Объявляем современный синхронизируемый тип от FishNet
+    // Объявляем переменные по новому стандарту (через дженерик-класс)
+    // Делаем их readonly, так как сам контейнер не меняется, меняется его .Value
     public readonly SyncVar<PlayerState> CurrentPlayerChest = new SyncVar<PlayerState>(PlayerState.Nothing);
-    public readonly SyncVar<PlayerState> LastPlayerChest = new SyncVar<PlayerState>(PlayerState.Nothing);
     public readonly SyncVar<PlayerState> CurrentPlayerLegs = new SyncVar<PlayerState>(PlayerState.Nothing);
-    public readonly SyncVar<PlayerState> LastPlayerLegs = new SyncVar<PlayerState>(PlayerState.Nothing);
     public readonly SyncVar<PlayerState> CurrentPlayerBelowLegs = new SyncVar<PlayerState>(PlayerState.Nothing);
-    public readonly SyncVar<PlayerState> LastPlayerBelowLegs = new SyncVar<PlayerState>(PlayerState.Nothing);
+    private readonly Collider[] hitCollidersChest = new Collider[4];
+    private readonly Collider[] hitCollidersLegs = new Collider[4];
+    private readonly RaycastHit[] hitCollidersLanding = new RaycastHit[4];
     private Collider myCollider;
     private Rigidbody rb;
     private Animator anim;
     private Transform chestBone;
-    private readonly Collider[] hitCollidersChest = new Collider[4];
-    private readonly Collider[] hitCollidersLegs = new Collider[4];
-    private readonly RaycastHit[] hitCollidersLanding = new RaycastHit[4];
     private void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -35,12 +40,39 @@ public class PlayerSensor : NetworkBehaviour
         if (anim != null)
             chestBone = anim.GetBoneTransform(HumanBodyBones.Chest);
     }
-    [Server] // Этот метод будет вызываться и работать СТРОГО на сервере!
-    private void Update()
+    private void Awake()
     {
-
+        // Вручную подписываем callback на события изменения значений в Awake
+        CurrentPlayerChest.OnChange += OnChestStateChanged;
+        CurrentPlayerLegs.OnChange += OnLegsStateChanged;
+        CurrentPlayerBelowLegs.OnChange += OnBelowLegsStateChanged;
     }
-    [Server] // Этот метод будет вызываться и работать СТРОГО на сервере!
+    // Эти методы вызываются на клиентах сами при изменении данных
+    private void OnChestStateChanged(PlayerState prev, PlayerState next, bool asServer)
+    {
+        if (asServer                // Если в код лезет сервер
+            || anim == null) return;// Если аниматор не найден
+        anim.SetBool(_BuoyantHash, next == PlayerState.Water);
+    }
+    private void OnLegsStateChanged(PlayerState prev, PlayerState next, bool asServer)
+    {
+        if (asServer                // Если в код лезет сервер
+            || anim == null         // Если аниматор не найден
+            || prev == next) return;// Если предыдущее и текущее состояниение схожее
+        // Гасим старое состояние
+        if (prev == PlayerState.Water) anim.SetBool(_WaterHash, false);
+        if (prev == PlayerState.Ground) anim.SetBool(_GroundHash, false);
+        // Включаем новое
+        if (next == PlayerState.Water) anim.SetBool(_WaterHash, true);
+        if (next == PlayerState.Ground) anim.SetBool(_GroundHash, true);
+    }
+    private void OnBelowLegsStateChanged(PlayerState prev, PlayerState next, bool asServer)
+    {
+        if (asServer                // Если в код лезет сервер
+            || anim == null) return;// Если аниматор не найден
+        anim.SetBool(_LandingHash, next == PlayerState.Ground);
+    }
+        [Server] // Этот метод будет вызываться и работать СТРОГО на сервере!
     private void FixedUpdate()
     {
         // Сервер сам пускает сферы под каждым игроком, считает физику

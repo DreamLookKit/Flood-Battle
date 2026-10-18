@@ -46,17 +46,13 @@ public class PlayerController : NetworkBehaviour
     private CapsuleCollider _capsuleCollider;    // Ссылка для изменения высоты тела
     private BuoyantObject _buoyantScript;
     private PlayerSensor _playerSensor;     //  Локальная переменная-ссылка на сторонний скрпит PlayerSensor.cs
-    private enum JumpState { Grounded, InNormalJump, InLongJump, LandingProcessed }
-    private JumpState _currentJumpState = JumpState.Grounded;
     // ОБЪЯВЛЕНИЕ: Создаем ячейки для хранения числовых ID.
     // readonly означает, что мы запишем туда число один раз и никто его случайно не изменит.
     // static экономит память — эти ID будут общими для всех копий скрипта.
     private static readonly int _SpeedHash = Animator.StringToHash("Speed");
-    private static readonly int _WaterHash = Animator.StringToHash("Water");
-    private static readonly int _GroundHash = Animator.StringToHash("Ground");
-    private static readonly int _BuoyantHash = Animator.StringToHash("Buoyant");
     private static readonly int _IsCrouchedHash = Animator.StringToHash("IsCrouched");
-    private static readonly int _LandingHash = Animator.StringToHash("Landing");
+    private enum JumpState { Grounded, InNormalJump, InLongJump, LandingProcessed }
+    private JumpState _currentJumpState = JumpState.Grounded;
     private float _cameraRotationX = 0f;
     private float _cameraRotationY = 0f;
     //private float currentCameraY;   // Текущая локальная высота камеры
@@ -64,7 +60,7 @@ public class PlayerController : NetworkBehaviour
     private float _speedForAnim;     // Текущая скорость игрока, которая будет передваться в аниматор с измененным знаком
     private float _defaultY = 0f;    // Стандартное положение камеры по оси Y
     private float _timer = 0f;  
-    //📦 Структура, в который клиент упаковывает все нажатия
+    // Структура, в который клиент упаковывает все нажатия
     public struct MoveData : IReplicateData
     {
         public Vector2 MoveInput;
@@ -84,7 +80,7 @@ public class PlayerController : NetworkBehaviour
         public uint GetTick() => _tick;
         public void SetTick(uint value) => _tick = value;
     }
-    //📦 Структура, при помощи которой сервер серяет данные из ReplicateMove
+    // Структура, при помощи которой сервер серяет данные из ReplicateMove
     public struct ReconcileData : IReconcileData
     {
         public Vector3 Position;
@@ -135,6 +131,7 @@ public class PlayerController : NetworkBehaviour
             .With("Down", "<Keyboard>/s")   // Индекс привязки: 2
             .With("Left", "<Keyboard>/a")   // Индекс привязки: 3
             .With("Right", "<Keyboard>/d"); // Индекс привязки: 4
+        JumpAction = new InputAction("Jump", binding: "<Keyboard>/space");
         SprintAction = new InputAction("Sprint", binding: "<Keyboard>/leftShift");
         CrouchAction = new InputAction("Crouch", binding: "<Keyboard>/leftCtrl");
     }
@@ -147,11 +144,11 @@ public class PlayerController : NetworkBehaviour
         // Включаем импуты только если мы хозяева этого персонажа
         if (IsOwner)
         {
+            if (LookAction != null) LookAction.Enable();
             if (MoveAction != null) MoveAction.Enable();
             if (JumpAction != null) JumpAction.Enable();
             if (SprintAction != null) SprintAction.Enable();
             if (CrouchAction != null) CrouchAction.Enable();
-
             if (JumpAction != null) JumpAction.performed += OnJumpPerformed;
         }
     }
@@ -164,6 +161,7 @@ public class PlayerController : NetworkBehaviour
         // Выключаем и отписываемся при отключении
         if (IsOwner)
         {
+            LookAction.Disable();
             MoveAction.Disable();
             JumpAction.Disable();
             SprintAction.Disable();
@@ -175,7 +173,7 @@ public class PlayerController : NetworkBehaviour
     private void Update()
     {
         if (!IsOwner) return; //Только игрок может управлять персонажем
-        //🖱️ Детекция мыши
+        // Детекция мыши
         if (Mouse.current != null)
         {
             // Мы получаем изменение положения мыши для текущего кадра (30f - компенсация медленного движения мыши)
@@ -188,7 +186,7 @@ public class PlayerController : NetworkBehaviour
             // Применяем локально
             transform.rotation = Quaternion.Euler(0f, _cameraRotationY, 0f); // Перезаписываем жестко, чтобы Reconcile не сбрасывал в ноль
         }
-        //🎥 Настраиваем положение камеры, учитывая эффект дыхания 
+        // Настраиваем положение камеры, учитывая эффект дыхания 
         if (playerCamera != null)
         {
             // Если двигаемся, качаем камеру быстрее. Если стоим - это плавное дыхание
@@ -200,7 +198,7 @@ public class PlayerController : NetworkBehaviour
             newPos.y = _defaultY + Mathf.Sin(_timer) * currentAmount;
             playerCamera.transform.localPosition = newPos;
         }
-        //🎬 ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
+        // ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
         if (anim != null && _playerSensor != null)
         {
             // ВМЕСТО кнопок смотрим на реальное направление движения персонажа!
@@ -218,64 +216,36 @@ public class PlayerController : NetworkBehaviour
                 anim.SetFloat(_SpeedHash, _speedForAnim);
             // Передаем положение стоит/присяд
             anim.SetBool(_IsCrouchedHash, CrouchAction.IsPressed());
-            //🔎 🌍 💧 💨ДЕТЕКЦИЯ СЛОЕВ (ВОДА, ЗЕМЛЯ и тд)
-            //🔎 Если на уровне груди игрока изменения по сравнению с предыдущим сохраненным флагом
-            if (_playerSensor.LastPlayerChest.Value != _playerSensor.CurrentPlayerChest.Value)
-            {
-                anim.SetBool(_BuoyantHash, _playerSensor.CurrentPlayerChest.Value == PlayerState.Water);
-                _playerSensor.LastPlayerChest.Value = _playerSensor.CurrentPlayerChest.Value;
-            }
-            //🔎 Если на уровне ног изменения по сравнению с предыдущим сохраненным флагом
-            if (_playerSensor.LastPlayerLegs.Value != _playerSensor.CurrentPlayerLegs.Value)
-            {
-                // Выключаем то, из чего вышли
-                switch (_playerSensor.LastPlayerLegs.Value)
-                {
-                    case PlayerState.Water: anim.SetBool(_WaterHash, false); break;
-                    case PlayerState.Ground: anim.SetBool(_GroundHash, false); break;
-                }
-                // Включаем то, куда пришли
-                switch (_playerSensor.CurrentPlayerLegs.Value)
-                {
-                    case PlayerState.Water: anim.SetBool(_WaterHash, true); break;
-                    case PlayerState.Ground: anim.SetBool(_GroundHash, true); break;
-                }
-                _playerSensor.LastPlayerLegs.Value = _playerSensor.CurrentPlayerLegs.Value;
-            }
-            //🔎 Если под ногами изменения по сравнению с предыдущим сохраненным флагом (для анимации Landing)
-            if (_playerSensor.LastPlayerBelowLegs != _playerSensor.CurrentPlayerBelowLegs)
-            {
-                anim.SetBool(_LandingHash, _playerSensor.CurrentPlayerBelowLegs.Value == PlayerState.Ground);
-                _playerSensor.LastPlayerBelowLegs.Value = _playerSensor.CurrentPlayerBelowLegs.Value;
-            }
-            //🕹 Детекция нажатий
+            // ДЕТЕКЦИЯ СЛОЕВ (ВОДА, ЗЕМЛЯ и тд)
+            // Если на уровне груди игрока изменения по сравнению с предыдущим сохраненным флагом
+            // Детекция нажатий
             if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water) //Ноги НЕ в воде
                 HandleCrouch();
         }
     }
-    //🌐 Синхронизация тиков по сети между клиентами
+    // Синхронизация тиков по сети между клиентами
     private void TimeManager_OnTick()
     {
         if (IsOwner)
         {
-            //🕹️ Клиент-владелец собирает данные со своей клавиатуры
+            // Клиент-владелец собирает данные со своей клавиатуры
             MoveData md = new MoveData(
                 MoveAction.ReadValue<Vector2>(),
                 _jumpWasPressed,
                 SprintAction.IsPressed(),
                 CrouchAction.IsPressed()
             );
-            //❌🤸 Сбрасываем флаг прыжка, так как мы его уже упаковали в этот тик
+            // Сбрасываем флаг прыжка, так как мы его уже упаковали в этот тик
             _jumpWasPressed = false;
-            //⏩🖥️ Вызываем репликацию (клиент выполнит локально, а пакет улетит на сервер)
+            // Вызываем репликацию (клиент выполнит локально, а пакет улетит на сервер)
             ReplicateMove(md);
         }
-        else if (IsServerInitialized)
-            //⏩🖥️ Если это сервер — он тупо ждет пакеты от клиентов и симулирует их
-            ReplicateMove(default);
+        //else if (IsServerInitialized)
+        //    // Если это сервер — он тупо ждет пакеты от клиентов и симулирует их
+        //    ReplicateMove(default);
     }
     [Replicate]
-    //🖥️ Выполнение на локальном клиенте
+    // Выполнение на локальном клиенте
     private void ReplicateMove(MoveData md, ReplicateState state = ReplicateState.Invalid, Channel channel = Channel.Unreliable)
     {
         // Мгновенно меняем высоту физического коллайдера на сервере и клиенте под текущий тик
@@ -283,20 +253,20 @@ public class PlayerController : NetworkBehaviour
         //❯❯❯❯ Считаем текущую горизонтальную скорость тела игрока
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         _speed = horizontalVelocity.magnitude;
-        //🤸 Сетевая обработка прыжка на основе данных из md
+        // Сетевая обработка прыжка на основе данных из md
         if (md.JumpPressed && _playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
             _rb.AddForce(Vector3.up * jumpForce, ForceMode.VelocityChange);
-        //🔄 Вычисляем физическое направление движения
+        // Вычисляем физическое направление движения
         Vector3 moveDir = (transform.forward * md.MoveInput.y + transform.right * md.MoveInput.x).normalized;
-        //🐌❓ Определяем, что мы сейчас делаем: разгоняемся (WASD зажат) или тормозим (WASD отпущен)
+        // Определяем, что мы сейчас делаем: разгоняемся (WASD зажат) или тормозим (WASD отпущен)
         float currentRate = (md.MoveInput.magnitude > 0) ? acceleration : deceleration;
-        //🐌 Если мы НЕ на земле и НЕ в воде — срезаем силу торможения/разгона (для более длительного прыжка)
+        // Если мы НЕ на земле и НЕ в воде — срезаем силу торможения/разгона (для более длительного прыжка)
         if (_playerSensor.CurrentPlayerLegs.Value == PlayerSensor.PlayerState.Nothing) currentRate *= airControlFactor;
-        //❯❯❯❯🏃 Устанавливаем стандартную скорость ходьбыаем
+        // Устанавливаем стандартную скорость ходьбыаем
         float currentSpeed = walkSpeed;
-        //❯❯❯❯🔼 Сохраняем текущую вертикальную скорость
+        // Сохраняем текущую вертикальную скорость
         float targetVelocityY = _rb.linearVelocity.y;
-        //💧 Если мы в воде
+        // Если мы в воде
         if (_playerSensor.CurrentPlayerLegs.Value == PlayerSensor.PlayerState.Water)
         {
             switch (md.CrouchPressed, md.SprintPressed)
@@ -319,7 +289,7 @@ public class PlayerController : NetworkBehaviour
                     break;
             }
         }
-        //🌍 Если мы на суше
+        // Если мы на суше
         else
         {
             currentSpeed = (md.CrouchPressed, md.SprintPressed, md.MoveInput.y >= 0) switch
@@ -329,14 +299,14 @@ public class PlayerController : NetworkBehaviour
                 _ => walkSpeed    // В остальных случаях
             };
         }
-        //🐌🔙 Окончательное урезание скорости в воде и на суше, если движение задом
+        // Окончательное урезание скорости в воде и на суше, если движение задом
         if (md.MoveInput.y < -0.1f) currentSpeed *= 0.5f;
-        //❯❯❯❯✅ Идеальная горизонтальная скорость, которую хочет получить игрок прямо сейчас
+        // Идеальная горизонтальная скорость, которую хочет получить игрок прямо сейчас
         Vector3 normalVelocity = moveDir * currentSpeed;
-        //❯❯❯❯🚶 ПЛАВНО подтягиваем ТЕКУЩУЮ скорость Rigidbody для плавности старта после нажатия клавиш
+        // ПЛАВНО подтягиваем ТЕКУЩУЮ скорость Rigidbody для плавности старта после нажатия клавиш
         float targetVelocityX = Mathf.MoveTowards(_rb.linearVelocity.x, normalVelocity.x, currentRate * Time.fixedDeltaTime);
         float targetVelocityZ = Mathf.MoveTowards(_rb.linearVelocity.z, normalVelocity.z, currentRate * Time.fixedDeltaTime);
-        //🚶 Применяем скорость нативно
+        // Применяем скорость нативно
         if (_playerSensor.CurrentPlayerLegs.Value == PlayerSensor.PlayerState.Water && !md.CrouchPressed)
             // Если мы в воде и НЕ жмем Ctrl (погружение) — мы позволяем физике Архимеда свободно двигать игрока вверх/вниз!
             // Мы перезаписываем ТОЛЬКО горизонтальную скорость X и Z, не трогая Y!
@@ -344,13 +314,13 @@ public class PlayerController : NetworkBehaviour
         else
             // Если мы на суше ИЛИ насильно топим себя через Ctrl — применяем targetVelocityY как обычно
             _rb.linearVelocity = new Vector3(targetVelocityX, targetVelocityY, targetVelocityZ);
-        //🔨 Намертво центрируем модель внутри капсулы, блокируя любые инерционные сдвиги
+        // Намертво центрируем модель внутри капсулы, блокируя любые инерционные сдвиги
         if (anim != null)
             // Намертво центрируем модель внутри капсулы, блокируя любые инерционные сдвиги
             anim.transform.localPosition = new Vector3(0f, -0.01f, 0f);
     }
     [Reconcile]
-    //📋 Метод проверки игрока: позиция, угол поворота, скороость
+    // Метод проверки игрока: позиция, угол поворота, скороость
     private void ReconcileMove(ReconcileData rd, Channel channel = Channel.Unreliable)
     {
         transform.position = rd.Position;
@@ -366,7 +336,7 @@ public class PlayerController : NetworkBehaviour
         ReconcileMove(rd);
     }
 
-    //🦵🏻🎥 Нажатие ctrl, камера визуально плавно опускается на клиенте
+    // Нажатие ctrl, камера визуально плавно опускается на клиенте
     private void HandleCrouch()
     {
         // Определяем целевую высоту камеры на основе ввода
@@ -375,7 +345,7 @@ public class PlayerController : NetworkBehaviour
         float lerpFactor = 1f - Mathf.Exp(-crouchSmoothTime * Time.deltaTime);
         _defaultY = Mathf.Lerp(_defaultY, targetCameraY, lerpFactor);
     }
-    //🦵🏻🌐 Нажатие ctrl, коллайдер игрока жестко опускается на клиенте, а сервер подхватывает и опускает у себя тоже
+    // Нажатие ctrl, коллайдер игрока жестко опускается на клиенте, а сервер подхватывает и опускает у себя тоже
     private void SetColliderHeightDirect(bool isCrouched)
     {
         // Выставляем жесткую высоту коллайдера в зависимости от флага из MoveData
@@ -384,7 +354,7 @@ public class PlayerController : NetworkBehaviour
         // Центрируем капсулу, чтобы подошва всегда была на нуле
         _capsuleCollider.center = new Vector3(0f, targetHeight/2f, 0f);
     }
-    //🤸 Детекция прыжка
+    // Детекция прыжка
     private void OnJumpPerformed(InputAction.CallbackContext context)
     {
         // Если ноги не в воде — взводим флаг прыжка для следующего сетевого тика
