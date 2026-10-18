@@ -88,7 +88,7 @@ public class PlayerSensor : NetworkBehaviour
             CurrentPlayerChest.Value = PlayerState.Nothing;
         // 2. Проверяем, вода или земля на уровне ног - GetPlayerLegs()
         int overlapSphereLegs = Physics.OverlapSphereNonAlloc(
-            GetPlayerLegs(0.1f), detectionRadius, hitCollidersLegs,
+            GetPlayerLegs(0.15f), detectionRadius, hitCollidersLegs,
             detectionMask, QueryTriggerInteraction.Collide);
         if (overlapSphereLegs > 0)
         {
@@ -129,7 +129,7 @@ public class PlayerSensor : NetworkBehaviour
             PlayerState.Water => Color.blue,
             _ => Color.white
         };
-        Gizmos.DrawWireSphere(GetPlayerLegs(0.1f), detectionRadius);
+        Gizmos.DrawWireSphere(GetPlayerLegs(0.15f), detectionRadius);
         // Отрисовываем тестовую сферу ПОД ногами игрока
         Gizmos.color = CurrentPlayerBelowLegs.Value switch
         {

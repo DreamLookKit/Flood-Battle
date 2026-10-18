@@ -9,6 +9,7 @@ using UnityEngine.InputSystem;
 using TMPro;
 //
 using static PlayerSensor;
+using Unity.Multiplayer.PlayMode;
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(CapsuleCollider))]
 
@@ -71,13 +72,17 @@ public class PlayerController : NetworkBehaviour
     {
         public Vector2 MoveInput;
         public bool JumpPressed, SprintPressed, CrouchPressed;
+        public PlayerSensor.PlayerState ChestState, LegsState, BelowLegsState;
         // Конструктор для удобства заполнения
-        public MoveData(Vector2 moveInput, bool jump, bool sprint, bool crouch)
+        public MoveData(Vector2 moveInput, bool jump, bool sprint, bool crouch, PlayerSensor.PlayerState chest, PlayerSensor.PlayerState legs, PlayerSensor.PlayerState belowLegs)
         {
             MoveInput = moveInput;
             JumpPressed = jump;
             SprintPressed = sprint;
             CrouchPressed = crouch;
+            ChestState = chest;
+            LegsState = legs;
+            BelowLegsState = belowLegs;
             _tick = 0; // Обязательное поле для FishNet
         }
         // Внутренности FishNet для отслеживания сетевых тиков
@@ -246,7 +251,10 @@ public class PlayerController : NetworkBehaviour
                 MoveAction.ReadValue<Vector2>(),
                 _jumpWasPressed,
                 SprintAction.IsPressed(),
-                CrouchAction.IsPressed()
+                CrouchAction.IsPressed(),
+                _playerSensor.CurrentPlayerChest.Value,
+                _playerSensor.CurrentPlayerLegs.Value,
+                _playerSensor.CurrentPlayerBelowLegs.Value
             );
             // Сбрасываем флаг прыжка, так как мы его уже упаковали в этот тик
             _jumpWasPressed = false;
@@ -264,20 +272,20 @@ public class PlayerController : NetworkBehaviour
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         _speed = horizontalVelocity.magnitude;
         // Сетевая обработка прыжка на основе данных из md
-        if (md.JumpPressed && _playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
+        if (md.JumpPressed && md.LegsState != PlayerSensor.PlayerState.Water)
             _rb.AddForce(Vector3.up * jumpForce, ForceMode.VelocityChange);
         // Вычисляем физическое направление движения
         Vector3 moveDir = (transform.forward * md.MoveInput.y + transform.right * md.MoveInput.x).normalized;
         // Определяем, что мы сейчас делаем: разгоняемся (WASD зажат) или тормозим (WASD отпущен)
         float currentRate = (md.MoveInput.magnitude > 0) ? acceleration : deceleration;
         // Если мы НЕ на земле и НЕ в воде — срезаем силу торможения/разгона (для более длительного прыжка)
-        if (_playerSensor.CurrentPlayerLegs.Value == PlayerSensor.PlayerState.Nothing) currentRate *= airControlFactor;
+        if (md.LegsState == PlayerSensor.PlayerState.Nothing) currentRate *= airControlFactor;
         // Устанавливаем стандартную скорость ходьбыаем
         float currentSpeed = walkSpeed;
         // Сохраняем текущую вертикальную скорость
         float targetVelocityY = _rb.linearVelocity.y;
         // Если мы в воде
-        if (_playerSensor.CurrentPlayerLegs.Value == PlayerSensor.PlayerState.Water)
+        if (md.LegsState == PlayerSensor.PlayerState.Water)
         {
             Debug.Log("In water");
             switch (md.CrouchPressed, md.SprintPressed)
@@ -317,7 +325,7 @@ public class PlayerController : NetworkBehaviour
         float targetVelocityX = Mathf.MoveTowards(_rb.linearVelocity.x, normalVelocity.x, currentRate * Time.fixedDeltaTime);
         float targetVelocityZ = Mathf.MoveTowards(_rb.linearVelocity.z, normalVelocity.z, currentRate * Time.fixedDeltaTime);
         // Применяем скорость нативно
-        if (_playerSensor.CurrentPlayerLegs.Value == PlayerSensor.PlayerState.Water && !md.CrouchPressed)
+        if (md.LegsState == PlayerSensor.PlayerState.Water && !md.CrouchPressed)
             // Если мы в воде и НЕ жмем Ctrl (погружение) — мы позволяем физике Архимеда свободно двигать игрока вверх/вниз!
             // Мы перезаписываем ТОЛЬКО горизонтальную скорость X и Z, не трогая Y!
             _rb.linearVelocity = new Vector3(targetVelocityX, _rb.linearVelocity.y, targetVelocityZ);
