@@ -47,6 +47,70 @@ public class PlayerSensor : NetworkBehaviour
         CurrentPlayerLegs.OnChange += OnLegsStateChanged;
         CurrentPlayerBelowLegs.OnChange += OnBelowLegsStateChanged;
     }
+    // Метод возвращает true, если на уровне груди игрока есть вода
+    public bool IsChestInWater()
+    {
+        // Пускаем сферу на уровне груди игрока 
+        int count = Physics.OverlapSphereNonAlloc(
+            GetPlayerChest(),
+            detectionRadius,
+            hitCollidersChest,
+            waterLayer,
+            QueryTriggerInteraction.Collide
+            );
+        //  Если нашли хотя бы один коллайдер воды - возвращаем true
+        return count > 0;
+    }
+    // Метод возвращает состояние под ногами игрока в этот самый миг
+    public PlayerState CheckLegsState()
+    {
+        int count = Physics.OverlapSphereNonAlloc(
+            GetPlayerLegs(0.1f),
+            detectionRadius,
+            hitCollidersLegs,
+            detectionMask,
+            QueryTriggerInteraction.Collide
+            );
+        if (count <= 0) return PlayerState.Nothing;
+        bool foundWater = false;
+        bool foundGround = false;
+        for (int i = 0; i < count; i++)
+        {
+            int layer = 1 << hitCollidersLegs[i].gameObject.layer;
+            // Если это слой воды - для Flood это глобальный приоритет
+            if ((layer & waterLayer.value) != 0)
+                foundWater = true;
+            // Если это плот, объект или земля
+            else if (((raftLayer.value | objectLayer.value | groundLayer.value) & layer) != 0)
+                foundGround = true;
+        }
+        if (foundWater) return PlayerState.Water;
+        if (foundGround) return PlayerState.Ground;
+        return PlayerState.Nothing;
+    }
+    // Метод проверяет, есть ли земля под ногами для анимации падения
+    public bool IsLandingGround()
+    {
+        int count = Physics.SphereCastNonAlloc(
+            GetPlayerLegs(),
+            detectionRadius,
+            Vector3.down,
+            hitCollidersLanding,
+            landingDistance,
+            detectionMask,
+            QueryTriggerInteraction.Ignore
+        );
+        // Если что-то нашли под ногами и мы летим вниз со скоростью выше 3
+        return (count > 0 && rb.linearVelocity.y < -3f);
+    }
+    // Вызывается только сервером в конце ReplicateMove
+    public void UpdateSyncVarsForAnimations()
+    {
+        // Записываем текущие мгновенные состояния в сетевые переменные
+        CurrentPlayerChest.Value = IsChestInWater() ? PlayerState.Water : PlayerState.Nothing;
+        CurrentPlayerLegs.Value = CheckLegsState();
+        CurrentPlayerBelowLegs.Value = IsLandingGround() ? PlayerState.Ground : PlayerState.Nothing;
+    }
     // Эти методы вызываются на клиентах сами при изменении данных
     private void OnChestStateChanged(PlayerState prev, PlayerState next, bool asServer)
     {
@@ -72,47 +136,6 @@ public class PlayerSensor : NetworkBehaviour
             || anim == null) return;// Если аниматор не найден
         anim.SetBool(_LandingHash, next == PlayerState.Ground);
     }
-    [Server] // Этот метод будет вызываться и работать СТРОГО на сервере!
-    private void FixedUpdate()
-    {
-        // Сервер сам пускает сферы под каждым игроком, считает физику
-        // и меняет SyncVar переменные через .Value
-        // Проверка слоев
-        // 1. Проверяем, вода у игрока на уровне гурди или нет - GetPlayerChest()
-        int overlapSphereChest = Physics.OverlapSphereNonAlloc(
-            GetPlayerChest(), detectionRadius, hitCollidersChest,
-            waterLayer, QueryTriggerInteraction.Collide);
-        if (overlapSphereChest > 0)
-            CurrentPlayerChest.Value = PlayerState.Water;
-        else
-            CurrentPlayerChest.Value = PlayerState.Nothing;
-        // 2. Проверяем, вода или земля на уровне ног - GetPlayerLegs()
-        int overlapSphereLegs = Physics.OverlapSphereNonAlloc(
-            GetPlayerLegs(0.15f), detectionRadius, hitCollidersLegs,
-            detectionMask, QueryTriggerInteraction.Collide);
-        if (overlapSphereLegs > 0)
-        {
-            bool foundWater = false;
-            bool foundGround= false;
-            for (int i = 0; i < overlapSphereLegs; i++)
-            {
-                int layer = 1 << hitCollidersLegs[i].gameObject.layer;
-                // Вода — абсолютный приоритет для ног во Flood
-                if ((layer & waterLayer.value) != 0)
-                    foundWater = true;
-                else
-                    if (((raftLayer.value | objectLayer.value | groundLayer.value) & layer) != 0) foundGround = true;
-            }
-            CurrentPlayerLegs.Value = foundWater ? PlayerState.Water : foundGround ? PlayerState.Ground : PlayerState.Nothing;
-        }
-        else CurrentPlayerLegs.Value = PlayerState.Nothing;
-        // 3. Находим землю под ногами игрока для анимации приземления
-        int sphereCastLanding = Physics.SphereCastNonAlloc(
-            GetPlayerLegs(), detectionRadius, Vector3.down, hitCollidersLanding, landingDistance, detectionMask, QueryTriggerInteraction.Ignore);
-        if (sphereCastLanding > 0 && rb.linearVelocity.y < -3f)
-            CurrentPlayerBelowLegs.Value = PlayerState.Ground;
-        else CurrentPlayerBelowLegs.Value = PlayerState.Nothing;
-    }
     private void OnDrawGizmosSelected()
     {
         // Отрисовываем тестовую сферу в груди игрока
@@ -129,7 +152,7 @@ public class PlayerSensor : NetworkBehaviour
             PlayerState.Water => Color.blue,
             _ => Color.white
         };
-        Gizmos.DrawWireSphere(GetPlayerLegs(0.15f), detectionRadius);
+        Gizmos.DrawWireSphere(GetPlayerLegs(0.1f), detectionRadius);
         // Отрисовываем тестовую сферу ПОД ногами игрока
         Gizmos.color = CurrentPlayerBelowLegs.Value switch
         {

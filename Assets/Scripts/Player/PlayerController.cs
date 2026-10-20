@@ -98,13 +98,11 @@ public class PlayerController : NetworkBehaviour
         public Vector3 Position;
         public Quaternion Rotation;
         public Vector3 LinearVelocity;
-        public float CameraRotationY;
-        public ReconcileData(Vector3 position, Quaternion rotation, Vector3 linearVelocity, float cameraRotationY)
+        public ReconcileData(Vector3 position, Quaternion rotation, Vector3 linearVelocity)
         {
             Position = position;
             Rotation = rotation;
             LinearVelocity = linearVelocity;
-            CameraRotationY = cameraRotationY;
             _tick = 0;
         }
         private uint _tick;
@@ -277,24 +275,26 @@ public class PlayerController : NetworkBehaviour
     {
         // Мгновенно меняем высоту физического коллайдера на сервере и клиенте под текущий тик
         SetColliderHeightDirect(md.CrouchPressed);
+        // Нам плевать, что прислал клиент в пакете md. Мы верим только физике движка прямо здесь и сейчас!
+        PlayerSensor.PlayerState currentLegsState = _playerSensor.CheckLegsState();
         // Считаем текущую горизонтальную скорость тела игрока
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         _speed = horizontalVelocity.magnitude;
         // Сетевая обработка прыжка на основе данных из md
-        if (md.JumpPressed && md.LegsState != PlayerSensor.PlayerState.Water)
+        if (md.JumpPressed && currentLegsState != PlayerSensor.PlayerState.Water)
             _rb.AddForce(Vector3.up * jumpForce, ForceMode.VelocityChange);
         // Вычисляем физическое направление движения
         Vector3 moveDir = (transform.forward * md.MoveInput.y + transform.right * md.MoveInput.x).normalized;
         // Определяем, что мы сейчас делаем: разгоняемся (WASD зажат) или тормозим (WASD отпущен)
         float currentRate = (md.MoveInput.magnitude > 0) ? acceleration : deceleration;
         // Если мы НЕ на земле и НЕ в воде — срезаем силу торможения/разгона (для более длительного прыжка)
-        if (md.LegsState == PlayerSensor.PlayerState.Nothing) currentRate *= airControlFactor;
+        if (currentLegsState == PlayerSensor.PlayerState.Nothing) currentRate *= airControlFactor;
         // Устанавливаем стандартную скорость ходьбыаем
         float currentSpeed = walkSpeed;
         // Сохраняем текущую вертикальную скорость
         float targetVelocityY = _rb.linearVelocity.y;
         // Если мы в воде
-        if (md.LegsState == PlayerSensor.PlayerState.Water)
+        if (currentLegsState == PlayerSensor.PlayerState.Water)
         {
             Debug.Log("In water");
             switch (md.CrouchPressed, md.SprintPressed)
@@ -334,7 +334,7 @@ public class PlayerController : NetworkBehaviour
         float targetVelocityX = Mathf.MoveTowards(_rb.linearVelocity.x, normalVelocity.x, currentRate * Time.fixedDeltaTime);
         float targetVelocityZ = Mathf.MoveTowards(_rb.linearVelocity.z, normalVelocity.z, currentRate * Time.fixedDeltaTime);
         // Применяем скорость нативно
-        if (md.LegsState == PlayerSensor.PlayerState.Water && !md.CrouchPressed)
+        if (currentLegsState == PlayerSensor.PlayerState.Water && !md.CrouchPressed)
             // Если мы в воде и НЕ жмем Ctrl (погружение) — мы позволяем физике Архимеда свободно двигать игрока вверх/вниз!
             // Мы перезаписываем ТОЛЬКО горизонтальную скорость X и Z, не трогая Y!
             _rb.linearVelocity = new Vector3(targetVelocityX, _rb.linearVelocity.y, targetVelocityZ);
@@ -345,25 +345,20 @@ public class PlayerController : NetworkBehaviour
         if (anim != null)
             // Намертво центрируем модель внутри капсулы, блокируя любые инерционные сдвиги
             anim.transform.localPosition = new Vector3(0f, -0.01f, 0f);
+        // --- А ТЕПЕРЬ СЕРВЕР ОБНОВЛЯЕТ SYNCVAR ДЛЯ ДРУГИХ ИГРОКОВ ---
+        // state == ReplicateState.Current означает, что мы считаем НАСТОЯЩИЙ тик, а не пересчитываем историю (Rollback)
+        if (IsServerInitialized && state == ReplicateState.Ticked)
+            _playerSensor.UpdateSyncVarsForAnimations();
     }
     [Reconcile]
-    // Метод проверки игрока: позиция, угол поворота, скорость, угол поворота камеры по Y
+    // Метод проверки игрока: позиция, угол поворота, скорость
     private void ReconcileMove(ReconcileData rd, Channel channel = Channel.Unreliable)
     {
+        // Принудительная перезапись данных клиента данными от сервера (rd)
         transform.position = rd.Position;
         transform.rotation = rd.Rotation;
         _rb.linearVelocity = rd.LinearVelocity;
-        _cameraRotationY = rd.CameraRotationY;
     }
-    public override void CreateReconcile()
-    {
-        base.CreateReconcile();
-        // Создаем структуру сверки данных прямо здесь
-        ReconcileData rd = new ReconcileData(transform.position, transform.rotation, _rb.linearVelocity, _cameraRotationY);
-        // И сразу же вызываем наш метод сверки
-        ReconcileMove(rd);
-    }
-
     // Нажатие ctrl, камера визуально плавно опускается на клиенте
     private void HandleCrouch()
     {
@@ -388,5 +383,14 @@ public class PlayerController : NetworkBehaviour
         // Если ноги не в воде — взводим флаг прыжка для следующего сетевого тика
         if (_playerSensor != null && _playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
             _jumpWasPressed = true;
+    }
+    // Исполняется на СЕРВЕРЕ!
+    public override void CreateReconcile()
+    {
+        base.CreateReconcile();
+        // Сервер упаковывает свои эталонные данные
+        ReconcileData rd = new ReconcileData(transform.position, transform.rotation, _rb.linearVelocity);
+        // И сразу же вызываем наш метод сверки
+        ReconcileMove(rd);
     }
 }
