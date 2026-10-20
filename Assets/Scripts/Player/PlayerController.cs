@@ -347,19 +347,20 @@ public class PlayerController : NetworkBehaviour
             anim.transform.localPosition = new Vector3(0f, -0.01f, 0f);
     }
     [Reconcile]
-    // Метод проверки игрока: позиция, угол поворота, скороость
+    // Метод проверки игрока: позиция, угол поворота, скорость, угол поворота камеры по Y
     private void ReconcileMove(ReconcileData rd, Channel channel = Channel.Unreliable)
     {
         transform.position = rd.Position;
         transform.rotation = rd.Rotation;
         _rb.linearVelocity = rd.LinearVelocity;
+        _cameraRotationY = rd.CameraRotationY;
     }
     public override void CreateReconcile()
     {
         base.CreateReconcile();
         // Создаем структуру сверки данных прямо здесь
         ReconcileData rd = new ReconcileData(transform.position, transform.rotation, _rb.linearVelocity, _cameraRotationY);
-        // И сразу же вызываем наш метод сверки, как того требует ошибка
+        // И сразу же вызываем наш метод сверки
         ReconcileMove(rd);
     }
 

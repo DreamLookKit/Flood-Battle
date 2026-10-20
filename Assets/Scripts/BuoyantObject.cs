@@ -114,15 +114,4 @@ public class BuoyantObject : MonoBehaviour
             return new Vector3(transform.position.x, myCollider.bounds.min.y + 0.2f, transform.position.z);
         return transform.position;
     }
-    // Для игроков
-    private Vector3 GetChestPoint()
-    {
-        if (pc != null && anim != null)
-        {
-            Transform chestBone = anim.GetBoneTransform(HumanBodyBones.Chest);
-            if (chestBone != null)
-                return chestBone.position;  //new Vector3() писать не нужно, position уже Vector3
-        }
-        return transform.position;
-    }
 }
