@@ -221,17 +221,17 @@ public class PlayerController : NetworkBehaviour
             float targetSpeed = 0f;
             if (inputMove.magnitude > 0.05f)
             {
-                // Выбираем базовую скорсть в зависимости от зажатых кнопок
-                if (CrouchAction.IsPressed())
-                    targetSpeed = crouchSpeed;
-                else if (SprintAction.IsPressed() && inputMove.y >= 0f) // Спринт только вперд
-                    targetSpeed = sprintSpeed;
-                else
-                    targetSpeed = walkSpeed;
-                // Если W не зажата, а зажата S (inputMove.y отрицательный) - жестко инвертируем знак
-                // Никакой физики Rigidbody, только честное направление нажатия кнопки
-                if (inputMove.y < -0.05f)
-                    targetSpeed = -backSpeed;  //Задом ходим медленнее
+                targetSpeed = (CrouchAction.IsPressed(), SprintAction.IsPressed(), inputMove.y >= 0f) switch
+                {
+                    // 1. ПРИСЯД (Самый важный). Проверяем направление движения внутри
+                    (true, _, true) => crouchSpeed,   // Присел, идет вперед
+                    (true, _, false) => -crouchSpeed,  // Присел, идет назад (анимация приседа назад)
+                    // 2. ДВИЖЕНИЕ НАЗАД БЕЗ ПРИСЕДА (Спринт назад обычно невозможен, так что на него пофиг)
+                    (false, _, false) => -backSpeed,   // Не присел, идет назад
+                    // 3. ДВИЖЕНИЕ ВПЕРЕД БЕЗ ПРИСЕДА
+                    (false, true, true) => sprintSpeed, // Не присел, зажал спринт, идет вперед — бег
+                    (false, false, true) => walkSpeed   // Не присел, без спринта, идет вперед — шаг
+                };
             }
             // Плавно подтягиваем текущее значание анимации к целевому
             // Используем Time.deltatime, чтобы сглаживание шло частоте кадров монитора
@@ -322,12 +322,13 @@ public class PlayerController : NetworkBehaviour
             currentSpeed = (md.CrouchPressed, md.SprintPressed, md.MoveInput.y >= 0) switch
             {
                 (true, _, _) => crouchSpeed, // Нажат присяд, все равно на спринт и направление движения
-                (false, true, true) => sprintSpeed, // Не нажат присяд, нажат спринт, движение вперед
+                (false, _, false) => backSpeed, // Не нажат присяд, не нажат спринт, движение назад
+                (false, true, true) => sprintSpeed, // Не нажат присяд, нажат спринт, движение вперед     
                 _ => walkSpeed    // В остальных случаях
             };
         }
         // Окончательное урезание скорости в воде и на суше, если движение задом
-        if (md.MoveInput.y < -0.1f) currentSpeed = backSpeed;
+        //if (md.MoveInput.y < -0.1f) currentSpeed = 1.0f;
         // Идеальная горизонтальная скорость, которую хочет получить игрок прямо сейчас
         Vector3 normalVelocity = moveDir * currentSpeed;
         // ПЛАВНО подтягиваем ТЕКУЩУЮ скорость Rigidbody для плавности старта после нажатия клавиш
