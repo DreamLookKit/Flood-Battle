@@ -62,12 +62,11 @@ public class PlayerController : NetworkBehaviour
     private static readonly int _IsCrouchedHash = Animator.StringToHash("IsCrouched");
     private enum JumpState { Grounded, InNormalJump, InLongJump, LandingProcessed }
     private JumpState _currentJumpState = JumpState.Grounded;
+    private float _speedForAnimator = 0f;
     private float _cameraRotationX = 0f;
     private float _cameraRotationY = 0f;
-    private float _speed;            // Текущая скорость игрока
-    private float _speedForAnim;     // Текущая скорость игрока, которая будет передваться в аниматор с измененным знаком
     private float _defaultY = 0f;    // Стандартное положение камеры по оси Y
-    private float _timer = 0f;  
+    private float _timer = 0f;
     // Структура, в который клиент упаковывает все нажатия
     public struct MoveData : IReplicateData
     {
@@ -162,7 +161,7 @@ public class PlayerController : NetworkBehaviour
             if (JumpAction != null) JumpAction.performed += OnJumpPerformed;
         }
         // TEST
-        GameObject textObj = GameObject.Find("DebugSpeedText");
+        GameObject textObj = GameObject.Find("Text_Test");
         if (textObj != null)
             _debugSpeedText = textObj.GetComponent<TMP_Text>();
         else
@@ -196,7 +195,7 @@ public class PlayerController : NetworkBehaviour
             // Мы получаем изменение положения мыши для текущего кадра (30f - компенсация медленного движения мыши)
             Vector2 mouseDelta = LookAction.ReadValue<Vector2>() * (mouseSensivity * 30f) * Time.deltaTime;
             // Считаем углы автономно от физики transform-a!
-            _cameraRotationX = Mathf.Clamp(_cameraRotationX - mouseDelta.y, - 85, 85f);
+            _cameraRotationX = Mathf.Clamp(_cameraRotationX - mouseDelta.y, -85, 85f);
             _cameraRotationY += mouseDelta.x; // Копим поворот влево-вправо
             // Поворачиваем туловище влево и вправо
             transform.Rotate(Vector3.up * mouseDelta.x);
@@ -215,35 +214,6 @@ public class PlayerController : NetworkBehaviour
         // ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
         if (anim != null && _playerSensor != null)
         {
-            // Берем чистый инпут WASD, нажатый в этом кадре (он всегда идеален)
-            Vector2 inputMove = MoveAction.ReadValue<Vector2>();
-            // Рассчитываем виртуальную целевую скорость, котолрую хочет игрок
-            float targetSpeed = 0f;
-            if (inputMove.magnitude > 0.05f)
-            {
-                targetSpeed = (CrouchAction.IsPressed(), SprintAction.IsPressed(), inputMove.y >= 0f) switch
-                {
-                    // 1. ПРИСЯД (Самый важный). Проверяем направление движения внутри
-                    (true, _, true) => crouchSpeed,   // Присел, идет вперед
-                    (true, _, false) => -crouchSpeed,  // Присел, идет назад (анимация приседа назад)
-                    // 2. ДВИЖЕНИЕ НАЗАД БЕЗ ПРИСЕДА (Спринт назад обычно невозможен, так что на него пофиг)
-                    (false, _, false) => -backSpeed,   // Не присел, идет назад
-                    // 3. ДВИЖЕНИЕ ВПЕРЕД БЕЗ ПРИСЕДА
-                    (false, true, true) => sprintSpeed, // Не присел, зажал спринт, идет вперед — бег
-                    (false, false, true) => walkSpeed   // Не присел, без спринта, идет вперед — шаг
-                };
-            }
-            // Плавно подтягиваем текущее значание анимации к целевому
-            // Используем Time.deltatime, чтобы сглаживание шло частоте кадров монитора
-            _speedForAnim = Mathf.MoveTowards(_speedForAnim, targetSpeed, acceleration * Time.deltaTime);
-            // Передаем плавное значение в Аниматор
-            // Дополнительно используем встроенный демпер Unity (Damp Time = 0.05f), чтобы сгладить микро-шаги
-            anim.SetFloat(_SpeedHash, _speedForAnim, 0.05f, Time.deltaTime);
-            // Передаем положение стоит/присяд
-            anim.SetBool(_IsCrouchedHash, CrouchAction.IsPressed());
-            if (_debugSpeedText != null)
-                _debugSpeedText.text = $"Real speed (Raw): {_speed:F2}\nAnim speed (Smooth): {_speedForAnim:F2}";
-            // Детекция приседа
             if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
                 HandleCrouch();
         }
@@ -279,7 +249,7 @@ public class PlayerController : NetworkBehaviour
         PlayerSensor.PlayerState currentLegsState = _playerSensor.CheckLegsState();
         // Считаем текущую горизонтальную скорость тела игрока
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
-        _speed = horizontalVelocity.magnitude;
+        float speed = horizontalVelocity.magnitude;
         // Сетевая обработка прыжка на основе данных из md
         if (md.JumpPressed && currentLegsState != PlayerSensor.PlayerState.Water)
             _rb.AddForce(Vector3.up * jumpForce, ForceMode.VelocityChange);
@@ -342,10 +312,37 @@ public class PlayerController : NetworkBehaviour
         else
             // Если мы на суше ИЛИ насильно топим себя через Ctrl — применяем targetVelocityY как обычно
             _rb.linearVelocity = new Vector3(targetVelocityX, targetVelocityY, targetVelocityZ);
-        // Намертво центрируем модель внутри капсулы, блокируя любые инерционные сдвиги
-        if (anim != null)
+        // Рассчитываем виртуальную целевую скорость, которую хочет игрок
+        float targetSpeed = 0f;
+        if (md.MoveInput.magnitude > 0.05f)
+        {
+            targetSpeed = (md.CrouchPressed, md.SprintPressed, md.MoveInput.y >= 0f) switch
+            {
+                // 1. ПРИСЯД (Самый важный). Проверяем направление движения внутри
+                (true, _, true) => crouchSpeed,   // Присел, идет вперед
+                (true, _, false) => -crouchSpeed,  // Присел, идет назад (анимация приседа назад)
+                // 2. ДВИЖЕНИЕ НАЗАД БЕЗ ПРИСЕДА (Спринт назад обычно невозможен, так что на него пофиг)
+                (false, _, false) => -backSpeed,   // Не присел, идет назад
+                // 3. ДВИЖЕНИЕ ВПЕРЕД БЕЗ ПРИСЕДА
+                (false, true, true) => sprintSpeed, // Не присел, зажал спринт, идет вперед — бег
+                (false, false, true) => walkSpeed   // Не присел, без спринта, идет вперед — шаг
+            };
+        }  
+        if(anim != null)
+        {
             // Намертво центрируем модель внутри капсулы, блокируя любые инерционные сдвиги
             anim.transform.localPosition = new Vector3(0f, -0.01f, 0f);
+            // Плавно подтягиваем текущее значание анимации к целевому
+            _speedForAnimator = Mathf.MoveTowards(_speedForAnimator, targetSpeed, acceleration * Time.fixedDeltaTime);
+            // Передаем плавное значение в Аниматор
+            // Дополнительно используем встроенный демпер Unity (Damp Time = 0.05f), чтобы сгладить микро-шаги
+            anim.SetFloat(_SpeedHash, _speedForAnimator, 0.05f, Time.fixedDeltaTime);
+            // Передаем положение стоит/присяд
+            anim.SetBool(_IsCrouchedHash, md.CrouchPressed);
+            if (IsOwner && _debugSpeedText != null)
+                _debugSpeedText.text = $"Real speed (Raw): {speed:F2}\nAnim speed (Smooth): {_speedForAnimator:F2}";
+            // Детекция приседа
+        }        
         // --- А ТЕПЕРЬ СЕРВЕР ОБНОВЛЯЕТ SYNCVAR ДЛЯ ДРУГИХ ИГРОКОВ ---
         // state == ReplicateState.Current означает, что мы считаем НАСТОЯЩИЙ тик, а не пересчитываем историю (Rollback)
         if (IsServerInitialized && state == ReplicateState.Ticked)
