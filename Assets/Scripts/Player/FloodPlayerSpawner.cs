@@ -31,13 +31,14 @@ public class FloodPlayerSpawner : NetworkBehaviour
             return;
         }
         // Выбираем случайную точку из нашего массива доступных точек
-        int spawnIndex = Random.Range(0, _availableSpawnPoints.Count);
-        Vector3 spawnPos = customSpawnPoints[spawnIndex].position;
-        Quaternion spawnRot = customSpawnPoints[spawnIndex].rotation;
+        int spawnIndex = UnityEngine.Random.Range(0, _availableSpawnPoints.Count);
+        Vector3 spawnPos = _availableSpawnPoints[spawnIndex].position;
+        Quaternion spawnRot = _availableSpawnPoints[spawnIndex].rotation;
         // В FishNet объекты из пула создаются через NetworkManager
         NetworkObject spawnedPlayer = NetworkManager.GetPooledInstantiated(playerPrefab, spawnPos, spawnRot, true);
         // Обращаемся к ServerManager, чтобы заспаунить в сети
         ServerManager.Spawn(spawnedPlayer, connection);
+        Debug.LogFormat($"Player spawned in spawn point {spawnIndex}");
         // Удаляем использованную точку спауна
         _availableSpawnPoints.RemoveAt(spawnIndex);
     }
