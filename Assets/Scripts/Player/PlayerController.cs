@@ -109,25 +109,6 @@ public class PlayerController : NetworkBehaviour
         public uint GetTick() => _tick;
         public void SetTick(uint value) => _tick = value;
     }
-    private void Start()
-    {
-        anim = GetComponentInChildren<Animator>();
-        _rb = GetComponent<Rigidbody>();
-        _capsuleCollider = GetComponent<CapsuleCollider>();      // Поиск нашего коллайдера
-        _buoyantScript = GetComponent<BuoyantObject>();          // Поиск плавучести
-        _playerSensor = GetComponent<PlayerSensor>();            // Кэшируем переменную-ссылку на PlayerSensor.cs
-        // Ищем аниматор на дочерней 3D-модели
-        // Автоматически находим камеру среди дочерних объектов, если она не была перетащена в Инспектор
-        if (playerCamera == null)
-        {
-            playerCamera = GetComponentInChildren<Camera>();
-            _defaultY = playerCamera.transform.localPosition.y;            // Записываем ссылку на камеру
-        }
-        // Блокируем курсор мыши в центре экрана, чтобы он не покидал окно игры
-        Cursor.lockState = CursorLockMode.Locked;
-        // Скрываем его
-        Cursor.visible = false;
-    }
     private void Awake()
     {
         // Создаем действие для обзора мышью
@@ -143,6 +124,25 @@ public class PlayerController : NetworkBehaviour
         JumpAction = new InputAction("Jump", binding: "<Keyboard>/space");
         SprintAction = new InputAction("Sprint", binding: "<Keyboard>/leftShift");
         CrouchAction = new InputAction("Crouch", binding: "<Keyboard>/leftCtrl");
+        _playerSensor = GetComponent<PlayerSensor>(); // Кэшируем переменную-ссылку на PlayerSensor.cs
+    }
+    private void Start()
+    {
+        anim = GetComponentInChildren<Animator>();
+        _rb = GetComponent<Rigidbody>();
+        _capsuleCollider = GetComponent<CapsuleCollider>();      // Поиск нашего коллайдера
+        _buoyantScript = GetComponent<BuoyantObject>();          // Поиск плавучести
+        // Ищем аниматор на дочерней 3D-модели
+        // Автоматически находим камеру среди дочерних объектов, если она не была перетащена в Инспектор
+        if (playerCamera == null)
+        {
+            playerCamera = GetComponentInChildren<Camera>();
+            _defaultY = playerCamera.transform.localPosition.y;            // Записываем ссылку на камеру
+        }
+        // Блокируем курсор мыши в центре экрана, чтобы он не покидал окно игры
+        Cursor.lockState = CursorLockMode.Locked;
+        // Скрываем его
+        Cursor.visible = false;
     }
     public override void OnStartClient()
     {
@@ -185,15 +185,13 @@ public class PlayerController : NetworkBehaviour
         if (InstanceFinder.TimeManager != null)
             InstanceFinder.TimeManager.OnTick -= TimeManager_OnTick;
         // Выключаем и отписываемся при отключении
-        if (IsOwner)
-        {
-            LookAction.Disable();
-            MoveAction.Disable();
-            JumpAction.Disable();
-            SprintAction.Disable();
-            CrouchAction.Disable();
-            JumpAction.performed -= OnJumpPerformed;
-        }
+        if (!IsOwner) return;
+        LookAction.Disable();
+        MoveAction.Disable();
+        JumpAction.Disable();
+        SprintAction.Disable();
+        CrouchAction.Disable();
+        JumpAction.performed -= OnJumpPerformed;
     }
     // Графика и Логика (Привязана к FPS: 60, 100, 144 - неважно)
     private void Update()
@@ -231,23 +229,21 @@ public class PlayerController : NetworkBehaviour
     // Синхронизация тиков по сети между клиентами
     private void TimeManager_OnTick()
     {
-        if (IsOwner)
-        {
-            // Клиент-владелец собирает данные со своей клавиатуры
-            MoveData md = new MoveData(
-                MoveAction.ReadValue<Vector2>(),
-                _jumpWasPressed,
-                SprintAction.IsPressed(),
-                CrouchAction.IsPressed(),
-                _playerSensor.CurrentPlayerChest.Value,
-                _playerSensor.CurrentPlayerLegs.Value,
-                _playerSensor.CurrentPlayerBelowLegs.Value
-            );
-            // Сбрасываем флаг прыжка, так как мы его уже упаковали в этот тик
-            _jumpWasPressed = false;
-            // Вызываем репликацию (клиент выполнит локально, а пакет улетит на сервер)
-            ReplicateMove(md);
-        }
+        if (!IsOwner || _playerSensor == null || _rb == null) return;
+        // Клиент-владелец собирает данные со своей клавиатуры
+        MoveData md = new MoveData(
+            MoveAction.ReadValue<Vector2>(),
+            _jumpWasPressed,
+            SprintAction.IsPressed(),
+            CrouchAction.IsPressed(),
+            _playerSensor.CurrentPlayerChest.Value,
+            _playerSensor.CurrentPlayerLegs.Value,
+            _playerSensor.CurrentPlayerBelowLegs.Value
+        );
+        // Сбрасываем флаг прыжка, так как мы его уже упаковали в этот тик
+        _jumpWasPressed = false;
+        // Вызываем репликацию (клиент выполнит локально, а пакет улетит на сервер)
+        ReplicateMove(md);
     }
     [Replicate]
     // Выполнение на локальном клиенте
