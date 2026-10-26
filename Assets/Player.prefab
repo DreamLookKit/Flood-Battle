@@ -17,6 +17,7 @@ GameObject:
   - component: {fileID: 2907166410746095809}
   - component: {fileID: -5381149769867746890}
   - component: {fileID: 2720145554047570560}
+  - component: {fileID: 3785154631133482487}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -302,6 +303,28 @@ MonoBehaviour:
     X: 0
     Y: 0
     Z: 0
+--- !u!114 &3785154631133482487
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1522248751245443366}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8cac635f24954048aad3a6ff9110beb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishNet.Runtime::FishNet.Component.Animating.NetworkAnimator
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 2907166410746095809}
+  _networkObjectCache: {fileID: 0}
+  IgnoredParameters: []
+  _animator: {fileID: 3671422643489562681}
+  _synchronizeWhenDisabled: 0
+  _smoothFloats: 1
+  _interpolation: 2
+  _clientAuthoritative: 0
+  _sendToOwner: 0
 --- !u!1 &7380173767998404187
 GameObject:
   m_ObjectHideFlags: 0
@@ -516,6 +539,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 97d842d740c52f74abe5728b25ad04fe, type: 3}
+--- !u!95 &3671422643489562681 stripped
+Animator:
+  m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: 97d842d740c52f74abe5728b25ad04fe, type: 3}
+  m_PrefabInstance: {fileID: 7176792601621028264}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &7211300554523851331 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 97d842d740c52f74abe5728b25ad04fe, type: 3}
