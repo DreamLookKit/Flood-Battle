@@ -344,7 +344,11 @@ public class PlayerController : NetworkBehaviour
         // --- А ТЕПЕРЬ СЕРВЕР ОБНОВЛЯЕТ SYNCVAR ДЛЯ ДРУГИХ ИГРОКОВ ---
         // state == ReplicateState.Current означает, что мы считаем НАСТОЯЩИЙ тик, а не пересчитываем историю (Rollback)
         if (IsServerInitialized && state == ReplicateState.Ticked)
+        {
             _playerSensor.UpdateSyncVarsForAnimations();
+            RpcUpdatePositionForOthers(transform.position, transform.rotation, _rb.linearVelocity);
+        }
+            
     }
     [Reconcile]
     // Метод проверки игрока: позиция, угол поворота, скорость
@@ -379,6 +383,15 @@ public class PlayerController : NetworkBehaviour
         // Если ноги не в воде — взводим флаг прыжка для следующего сетевого тика
         if (_playerSensor != null && _playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
             _jumpWasPressed = true;
+    }
+    [ObserversRpc(ExcludeOwner = true)]
+    private void RpcUpdatePositionForOthers(Vector3 pos, Quaternion rot, Vector3 vel)
+    {
+        // Этот код сработает ТОЛЬКО на экранах чужих игроков
+        // Мы просто синхронизируем их transform с сервером
+        transform.position = pos;
+        transform.rotation = rot;
+        _rb.linearVelocity = vel;
     }
     // Исполняется на СЕРВЕРЕ!
     public override void CreateReconcile()
