@@ -16,6 +16,7 @@ GameObject:
   - component: {fileID: 4414167849872062874}
   - component: {fileID: 2907166410746095809}
   - component: {fileID: 3785154631133482487}
+  - component: {fileID: -4167110002628005118}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -227,7 +228,6 @@ MonoBehaviour:
   NetworkBehaviours:
   - {fileID: -6055492577290771859}
   - {fileID: 4414167849872062874}
-  - {fileID: 0}
   - {fileID: 3785154631133482487}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
@@ -239,7 +239,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584085083497142853
+  _initializedTimestamp: -8584083042844804939
 --- !u!114 &3785154631133482487
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -252,7 +252,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e8cac635f24954048aad3a6ff9110beb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FishNet.Runtime::FishNet.Component.Animating.NetworkAnimator
-  _componentIndexCache: 3
+  _componentIndexCache: 2
   _addedNetworkObject: {fileID: 2907166410746095809}
   _networkObjectCache: {fileID: 2907166410746095809}
   IgnoredParameters: []
@@ -262,6 +262,22 @@ MonoBehaviour:
   _interpolation: 2
   _clientAuthoritative: 0
   _sendToOwner: 0
+--- !u!114 &-4167110002628005118
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1522248751245443366}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 03002f7d324007e41b10a9dc87ed3c38, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishNet.Runtime::FishNet.Component.Ownership.PredictedOwner
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 2907166410746095809}
+  _networkObjectCache: {fileID: 0}
+  _allowTakeOwnership: 1
 --- !u!1 &7380173767998404187
 GameObject:
   m_ObjectHideFlags: 0

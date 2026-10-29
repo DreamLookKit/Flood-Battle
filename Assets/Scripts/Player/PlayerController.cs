@@ -156,9 +156,8 @@ public class PlayerController : NetworkBehaviour
             if (playerCamera != null)
                 playerCamera.gameObject.SetActive(false);
             // Ищем и выключаем чужой AudioListener, чтобы убрать ошибку про "2 audio listeners"
-            AudioListener foreignListener = GetComponentInChildren<AudioListener>();
-            if (foreignListener != null)
-                foreignListener.enabled = false;
+            AudioListener[] foreignListeners = GetComponentsInChildren<AudioListener>(true);
+            foreach (var listener in foreignListeners) listener.enabled = false;
             // Важно: для чужого игрока мы завершаем выполнение метода здесь. 
             // Ему не нужны наши инпуты и наш дебаг-текст на экране!
             return;
