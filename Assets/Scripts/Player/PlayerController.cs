@@ -150,18 +150,12 @@ public class PlayerController : NetworkBehaviour
         // Подписываем ВСЕХ (и сервер, и клиентов) на сетевые тики FishNet
         if (InstanceFinder.TimeManager != null)
             InstanceFinder.TimeManager.OnTick += TimeManager_OnTick;
-        if (!IsOwner)
-        {
-            // Тушим чужую камеру, чтобы экран не сходил с ума
-            if (playerCamera != null)
-                playerCamera.gameObject.SetActive(false);
-            // Ищем и выключаем чужой AudioListener, чтобы убрать ошибку про "2 audio listeners"
-            AudioListener[] foreignListeners = GetComponentsInChildren<AudioListener>(true);
-            foreach (var listener in foreignListeners) listener.enabled = false;
-            // Важно: для чужого игрока мы завершаем выполнение метода здесь. 
-            // Ему не нужны наши инпуты и наш дебаг-текст на экране!
-            return;
-        }
+        if (!IsOwner) return;
+        // Включаем рендеринг камеры для себя
+        if (playerCamera != null) playerCamera.enabled = true;
+        // Включаем уши для себя 
+        AudioListener myListener = GetComponentInChildren<AudioListener>(true);
+        if (myListener != null) myListener.enabled = true;
         // Включаем импуты только если мы хозяева этого персонажа
         if (LookAction != null) LookAction.Enable();
         if (MoveAction != null) MoveAction.Enable();
