@@ -232,7 +232,6 @@ MonoBehaviour:
   - {fileID: 3785154631133482487}
   - {fileID: -4167110002628005118}
   - {fileID: -2664959110986220205}
-  - {fileID: 0}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
   RuntimeParentNetworkBehaviour: {fileID: 0}
@@ -243,7 +242,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584082914302062557
+  _initializedTimestamp: -8584082893578604535
 --- !u!114 &3785154631133482487
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -504,6 +503,10 @@ PrefabInstance:
       propertyPath: m_Controller
       value: 
       objectReference: {fileID: 9100000, guid: 8596506e12b4ca64aacfeb0b356f8898, type: 2}
+    - target: {fileID: 5866666021909216657, guid: 97d842d740c52f74abe5728b25ad04fe, type: 3}
+      propertyPath: m_UpdateMode
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 5866666021909216657, guid: 97d842d740c52f74abe5728b25ad04fe, type: 3}
       propertyPath: m_ApplyRootMotion
       value: 0
