@@ -224,11 +224,13 @@ MonoBehaviour:
   WasActiveDuringEdit_Set1: 1
   <ComponentIndex>k__BackingField: 0
   <PredictedSpawn>k__BackingField: {fileID: 0}
-  <PredictedOwner>k__BackingField: {fileID: 0}
+  <PredictedOwner>k__BackingField: {fileID: -4167110002628005118}
   NetworkBehaviours:
   - {fileID: -6055492577290771859}
   - {fileID: 4414167849872062874}
   - {fileID: 3785154631133482487}
+  - {fileID: -4167110002628005118}
+  - {fileID: 0}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
   RuntimeParentNetworkBehaviour: {fileID: 0}
@@ -239,7 +241,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584083042844804939
+  _initializedTimestamp: -8584082956963762207
 --- !u!114 &3785154631133482487
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -274,9 +276,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 03002f7d324007e41b10a9dc87ed3c38, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FishNet.Runtime::FishNet.Component.Ownership.PredictedOwner
-  _componentIndexCache: 255
+  _componentIndexCache: 3
   _addedNetworkObject: {fileID: 2907166410746095809}
-  _networkObjectCache: {fileID: 0}
+  _networkObjectCache: {fileID: 2907166410746095809}
   _allowTakeOwnership: 1
 --- !u!1 &7380173767998404187
 GameObject:

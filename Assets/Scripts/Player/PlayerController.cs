@@ -125,6 +125,12 @@ public class PlayerController : NetworkBehaviour
         SprintAction = new InputAction("Sprint", binding: "<Keyboard>/leftShift");
         CrouchAction = new InputAction("Crouch", binding: "<Keyboard>/leftCtrl");
         _playerSensor = GetComponent<PlayerSensor>(); // Кэшируем переменную-ссылку на PlayerSensor.cs
+        // Автоматически находим камеру среди дочерних объектов, если она не была перетащена в Инспектор
+        if (playerCamera == null)
+        {
+            playerCamera = GetComponentInChildren<Camera>(true);
+            _defaultY = playerCamera.transform.localPosition.y;            // Записываем ссылку на камеру
+        }
     }
     private void Start()
     {
@@ -132,13 +138,6 @@ public class PlayerController : NetworkBehaviour
         _rb = GetComponent<Rigidbody>();
         _capsuleCollider = GetComponent<CapsuleCollider>();      // Поиск нашего коллайдера
         _buoyantScript = GetComponent<BuoyantObject>();          // Поиск плавучести
-        // Ищем аниматор на дочерней 3D-модели
-        // Автоматически находим камеру среди дочерних объектов, если она не была перетащена в Инспектор
-        if (playerCamera == null)
-        {
-            playerCamera = GetComponentInChildren<Camera>();
-            _defaultY = playerCamera.transform.localPosition.y;            // Записываем ссылку на камеру
-        }
         // Блокируем курсор мыши в центре экрана, чтобы он не покидал окно игры
         Cursor.lockState = CursorLockMode.Locked;
         // Скрываем его
