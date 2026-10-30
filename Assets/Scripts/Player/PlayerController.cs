@@ -199,7 +199,7 @@ public class PlayerController : NetworkBehaviour
             // Копим абсолютный угол для визуала камеры
             _visualRotationY += mouseDelta.x;
             // Крутим камеру на 144 FPS для плавности обзора
-            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, _visualRotationY, 0f);
+            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, 0f, 0f);
         }
         // 2. СГЛАЖИВАНИЕ МОДЕЛЬКИ (Чтобы ноги не дергались из-за тиков сети)
         if (_anim != null)
