@@ -10,7 +10,6 @@ using TMPro;
 //
 using static PlayerSensor;
 using Unity.Multiplayer.PlayMode;
-using FishNet.Component.Ownership;
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(CapsuleCollider))]
 
@@ -150,17 +149,7 @@ public class PlayerController : NetworkBehaviour
         // Подписываем ВСЕХ (и сервер, и клиентов) на сетевые тики FishNet
         if (InstanceFinder.TimeManager != null)
             InstanceFinder.TimeManager.OnTick += TimeManager_OnTick;
-        // Если к этому участку кода обращается чужой игрок
-        if (!IsOwner)
-        {
-            if (_rb != null)
-                // Выключаем физическое сопростивление, чтобы локальынй PhysX не спорил сам с собой
-                _rb.isKinematic = true;
-            // Отключаем сам компонент PredictedOwner, чтобы его скрытая логика
-            // не затирала координаты, которые мы шлем через RcpUpdatePositionForOther
-            if (TryGetComponent(out PredictedOwner predictedOwner))
-                predictedOwner.enabled = false;
-        }
+        if (!IsOwner) return;
         // Включаем рендеринг камеры для себя
         if (playerCamera != null) playerCamera.enabled = true;
         // Включаем уши для себя 
