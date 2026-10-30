@@ -1,5 +1,4 @@
 using FishNet;
-using FishNet.Example.ColliderRollbacks;
 using FishNet.Object;
 using FishNet.Object.Prediction;
 using FishNet.Transporting;
@@ -8,8 +7,6 @@ using UnityEngine.InputSystem;
 // TEST
 using TMPro;
 //
-using static PlayerSensor;
-using Unity.Multiplayer.PlayMode;
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(CapsuleCollider))]
 
@@ -37,7 +34,7 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private float crouchSmoothTime = 8f;   // Скорость плавного опускания камеры
     [SerializeField][Range(0.5f, 1.0f)] private float cameraHeightRatio = 0.85f;   // Eye level (percentage of body height)
     [Header("Animation Settings")]
-    [SerializeField] private Animator anim;
+    [SerializeField] private Animator _anim;
     [Header("References")]
     [SerializeField] private Camera playerCamera;
     // TEST
@@ -72,14 +69,16 @@ public class PlayerController : NetworkBehaviour
     {
         public Vector2 MoveInput;
         public bool JumpPressed, SprintPressed, CrouchPressed;
+        public float RotationY;
         public PlayerSensor.PlayerState ChestState, LegsState, BelowLegsState;
         // Конструктор для удобства заполнения
-        public MoveData(Vector2 moveInput, bool jump, bool sprint, bool crouch, PlayerSensor.PlayerState chest, PlayerSensor.PlayerState legs, PlayerSensor.PlayerState belowLegs)
+        public MoveData(Vector2 moveInput, bool jump, bool sprint, bool crouch, float rotationY, PlayerSensor.PlayerState chest, PlayerSensor.PlayerState legs, PlayerSensor.PlayerState belowLegs)
         {
             MoveInput = moveInput;
             JumpPressed = jump;
             SprintPressed = sprint;
             CrouchPressed = crouch;
+            RotationY = rotationY;
             ChestState = chest;
             LegsState = legs;
             BelowLegsState = belowLegs;
@@ -111,6 +110,10 @@ public class PlayerController : NetworkBehaviour
     }
     private void Awake()
     {
+        _anim = GetComponentInChildren<Animator>();
+        _rb = GetComponent<Rigidbody>();
+        _capsuleCollider = GetComponent<CapsuleCollider>();      // Поиск нашего коллайдера
+        _buoyantScript = GetComponent<BuoyantObject>();          // Поиск плавучести
         // Создаем действие для обзора мышью
         LookAction = new InputAction("Look", binding: "<Mouse>/delta");
         // Мы создаем составной 2D-вектор для WASD
@@ -131,17 +134,14 @@ public class PlayerController : NetworkBehaviour
             playerCamera = GetComponentInChildren<Camera>(true);
             _defaultY = playerCamera.transform.localPosition.y;            // Записываем ссылку на камеру
         }
-    }
-    private void Start()
-    {
-        anim = GetComponentInChildren<Animator>();
-        _rb = GetComponent<Rigidbody>();
-        _capsuleCollider = GetComponent<CapsuleCollider>();      // Поиск нашего коллайдера
-        _buoyantScript = GetComponent<BuoyantObject>();          // Поиск плавучести
         // Блокируем курсор мыши в центре экрана, чтобы он не покидал окно игры
         Cursor.lockState = CursorLockMode.Locked;
         // Скрываем его
         Cursor.visible = false;
+    }
+    private void Start()
+    {
+        
     }
     public override void OnStartClient()
     {
@@ -197,11 +197,10 @@ public class PlayerController : NetworkBehaviour
             // Считаем углы автономно от физики transform-a!
             _cameraRotationX = Mathf.Clamp(_cameraRotationX - mouseDelta.y, -85, 85f);
             _cameraRotationY += mouseDelta.x; // Копим поворот влево-вправо
-            // Поворачиваем туловище влево и вправо
-            transform.Rotate(Vector3.up * mouseDelta.x);
-            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, 0f, 0f);
-            // Применяем локально
-            transform.rotation = Quaternion.Euler(0f, _cameraRotationY, 0f); // Перезаписываем жестко, чтобы Reconcile не сбрасывал в ноль
+            // ВРАЩАЕМ ТОЛЬКО КАМЕРУ ПО ОБЕИМ ОСЯМ!
+            // Сама капсула игрока и её transform.forward сейчас СТОЯТ НА МЕСТЕ.
+            // Мы крутим только локальные углы внутри камеры, давая глазам 144 FPS.
+            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, _cameraRotationY, 0f);
         }
         // Настраиваем положение камеры
         if (playerCamera != null)
@@ -212,7 +211,7 @@ public class PlayerController : NetworkBehaviour
             playerCamera.transform.localPosition = newPos;
         }
         // ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
-        if (anim != null && _playerSensor != null)
+        if (_anim != null && _playerSensor != null)
         {
             if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
                 HandleCrouch();
@@ -228,6 +227,7 @@ public class PlayerController : NetworkBehaviour
             _jumpWasPressed,
             SprintAction.IsPressed(),
             CrouchAction.IsPressed(),
+            _cameraRotationY,
             _playerSensor.CurrentPlayerChest.Value,
             _playerSensor.CurrentPlayerLegs.Value,
             _playerSensor.CurrentPlayerBelowLegs.Value
@@ -245,6 +245,11 @@ public class PlayerController : NetworkBehaviour
         SetColliderHeightDirect(md.CrouchPressed);
         // Нам плевать, что прислал клиент в пакете md. Мы верим только физике движка прямо здесь и сейчас!
         PlayerSensor.PlayerState currentLegsState = _playerSensor.CheckLegsState();
+        // Разворачиваем коллайдер
+        transform.rotation = Quaternion.Euler(0f, md.RotationY, 0f);
+        if (IsOwner && playerCamera != null)
+            // Мы перенесли RotationY на капсулу, значит из локального вращения камеры его надо убрать
+            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, _cameraRotationY - md.RotationY, 0f);
         // Считаем текущую горизонтальную скорость тела игрока
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         float speed = horizontalVelocity.magnitude;
@@ -326,17 +331,17 @@ public class PlayerController : NetworkBehaviour
                 (false, false, true) => walkSpeed   // Не присел, без спринта, идет вперед — шаг
             };
         }  
-        if(anim != null)
+        if(_anim != null)
         {
             // Намертво центрируем модель внутри капсулы, блокируя любые инерционные сдвиги
-            anim.transform.localPosition = new Vector3(0f, -0.01f, 0f);
+            _anim.transform.localPosition = new Vector3(0f, -0.01f, 0f);
             // Плавно подтягиваем текущее значание анимации к целевому
             _speedForAnimator = Mathf.MoveTowards(_speedForAnimator, targetSpeed, acceleration * Time.fixedDeltaTime);
             // Передаем плавное значение в Аниматор
             // Дополнительно используем встроенный демпер Unity (Damp Time = 0.05f), чтобы сгладить микро-шаги
-            anim.SetFloat(_SpeedHash, _speedForAnimator, 0.05f, Time.fixedDeltaTime);
+            _anim.SetFloat(_SpeedHash, _speedForAnimator, 0.05f, Time.fixedDeltaTime);
             // Передаем положение стоит/присяд
-            anim.SetBool(_IsCrouchedHash, md.CrouchPressed);
+            _anim.SetBool(_IsCrouchedHash, md.CrouchPressed);
             if (IsOwner && _debugSpeedText != null)
                 _debugSpeedText.text = $"Real speed (Raw): {speed:F2}\nAnim speed (Smooth): {_speedForAnimator:F2}";
             // Детекция приседа
