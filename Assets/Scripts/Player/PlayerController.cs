@@ -196,8 +196,6 @@ public class PlayerController : NetworkBehaviour
             _cameraRotationX = Mathf.Clamp(_cameraRotationX - mouseDelta.y, -85, 85f);
             // Копим чистый сдвиг мыши для сети(дельту)
             _accumulateMouseX += mouseDelta.x;
-            // Копим абсолютный угол для визуала камеры
-            _visualRotationY += mouseDelta.x;
             // Крутим камеру на 144 FPS для плавности обзора
             playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, 0f, 0f);
         }
