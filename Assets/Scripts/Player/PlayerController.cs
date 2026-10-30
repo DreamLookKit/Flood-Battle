@@ -201,20 +201,17 @@ public class PlayerController : NetworkBehaviour
             // Крутим камеру на 144 FPS для плавности обзора
             playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, _visualRotationY, 0f);
         }
-        // Настраиваем положение камеры
-        if (playerCamera != null)
+        // 2. СГЛАЖИВАНИЕ МОДЕЛЬКИ (Чтобы ноги не дергались из-за тиков сети)
+        if (_anim != null)
         {
-            // Сдвигаем камеру по синусоиде вверх-вниз относительно дефолтной высоты
-            Vector3 newPos = playerCamera.transform.localPosition;
-            newPos.y = _defaultY;
-            playerCamera.transform.localPosition = newPos;
+            // Моделька плавно докручивается к углу взгляда, но ТОЛЬКО ПО ОСИ Y! Никаких Х!
+            float smoothedY = Mathf.LerpAngle(_anim.transform.localRotation.eulerAngles.y, 0f, 15f * Time.deltaTime);
+            _anim.transform.localRotation = Quaternion.Euler(0f, smoothedY, 0f);
         }
         // ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
-        if (_anim != null && _playerSensor != null)
-        {
+        if (playerCamera != null && _playerSensor != null)
             if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
                 HandleCrouch();
-        }
     }
     // Синхронизация тиков по сети между клиентами
     private void TimeManager_OnTick()
@@ -354,13 +351,16 @@ public class PlayerController : NetworkBehaviour
     // Метод проверки игрока: позиция, угол поворота, скорость
     private void ReconcileMove(ReconcileData rd, Channel channel = Channel.Unreliable)
     {
+        // Запоминаем старый поворот до отката
+        float oldY = transform.rotation.eulerAngles.y;
         // Принудительная перезапись данных клиента данными от сервера (rd)
         transform.position = rd.Position;
         transform.rotation = rd.Rotation;
         _rb.linearVelocity = rd.LinearVelocity;
-        // ВЫТАСКИВАЕМ УГОЛ ИЗ КВАТЕРНИОНА:
-        // Мы просто берем Y из углов Эйлера серверного кватерниона и приравниваем к нему наши глаза
-        _visualRotationY = rd.Rotation.eulerAngles.y;
+        // Считаем, на сколько градусов ошибся клиент
+        float errorY = Mathf.DeltaAngle(rd.Rotation.eulerAngles.y, oldY);
+        // Корректируем глаза на эту ошибку, а не швыряем их в дефолт сервера!
+        _visualRotationY = transform.rotation.eulerAngles.y + errorY;
     }
     // Нажатие ctrl, камера визуально плавно опускается на клиенте
     private void HandleCrouch()
