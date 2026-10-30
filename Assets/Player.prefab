@@ -122,7 +122,7 @@ MonoBehaviour:
   crouchHeight: 1
   crouchSmoothTime: 8
   cameraHeightRatio: 0.85
-  anim: {fileID: 0}
+  _anim: {fileID: 0}
   playerCamera: {fileID: 0}
 --- !u!114 &9024275895446332074
 MonoBehaviour:
@@ -229,8 +229,7 @@ MonoBehaviour:
   - {fileID: -6055492577290771859}
   - {fileID: 4414167849872062874}
   - {fileID: 3785154631133482487}
-  - {fileID: 0}
-  - {fileID: 0}
+  - {fileID: 4971107814128094670}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
   RuntimeParentNetworkBehaviour: {fileID: 0}
@@ -241,7 +240,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584082893578604535
+  _initializedTimestamp: -8584082231866588339
 --- !u!114 &3785154631133482487
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -276,9 +275,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a2836e36774ca1c4bbbee976e17b649c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FishNet.Runtime::FishNet.Component.Transforming.NetworkTransform
-  _componentIndexCache: 255
+  _componentIndexCache: 3
   _addedNetworkObject: {fileID: 2907166410746095809}
-  _networkObjectCache: {fileID: 0}
+  _networkObjectCache: {fileID: 2907166410746095809}
   _componentConfiguration: 2
   _synchronizeParent: 0
   _packing:

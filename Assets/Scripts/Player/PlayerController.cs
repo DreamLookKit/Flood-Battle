@@ -60,8 +60,8 @@ public class PlayerController : NetworkBehaviour
     private JumpState _currentJumpState = JumpState.Grounded;
     private float _speedForAnimator = 0f;
     private float _cameraRotationX = 0f;
+    private float _cameraRotationY = 0f;
     private float _visualRotationY = 0f;
-    private float _accumulateMouseX = 0f;
     private float _defaultY = 0f;    // Стандартное положение камеры по оси Y
     // Структура, в который клиент упаковывает все нажатия
     public struct MoveData : IReplicateData
@@ -147,7 +147,13 @@ public class PlayerController : NetworkBehaviour
         // Подписываем ВСЕХ (и сервер, и клиентов) на сетевые тики FishNet
         if (InstanceFinder.TimeManager != null)
             InstanceFinder.TimeManager.OnTick += TimeManager_OnTick;
-        if (!IsOwner) return;
+        if (!IsOwner)
+        {
+            _rb.isKinematic = true;             // Включаем rigidbody другим игроков kinematic
+            _rb.useGravity = false;             // И отлючаем гравитацию
+            _capsuleCollider.isTrigger = true;  // А коллайдеру включаем триггер, чтобы чужие коллайдеры не толкали друг друга локально            
+            return;
+        }
         // Включаем рендеринг камеры для себя
         if (playerCamera != null) playerCamera.enabled = true;
         // Включаем уши для себя 
@@ -187,17 +193,17 @@ public class PlayerController : NetworkBehaviour
     private void Update()
     {
         if (!IsOwner) return; //Только игрок может управлять персонажем
-        // Детекция мыши
+        // Поворот камеры мышью
         if (Mouse.current != null)
         {
             // Мы получаем изменение положения мыши для текущего кадра (30f - компенсация медленного движения мыши)
             Vector2 mouseDelta = LookAction.ReadValue<Vector2>() * (mouseSensivity * 30f) * Time.deltaTime;
             // Считаем углы автономно от физики transform-a!
             _cameraRotationX = Mathf.Clamp(_cameraRotationX - mouseDelta.y, -85, 85f);
-            // Копим чистый сдвиг мыши для сети(дельту)
-            _accumulateMouseX += mouseDelta.x;
-            // Крутим камеру на 144 FPS для плавности обзора
-            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, _accumulateMouseX, 0f);
+            // Копим чистый сдвиг мыши для локальной камеры (дельту)
+            _cameraRotationY *= mouseDelta.x;
+            // Камера всегда плавная на 144+ FPS
+            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, _cameraRotationY, 0f);
         }
         // 2. СГЛАЖИВАНИЕ МОДЕЛЬКИ (Чтобы ноги не дергались из-за тиков сети)
         if (_anim != null)
@@ -221,7 +227,8 @@ public class PlayerController : NetworkBehaviour
     private void TimeManager_OnTick()
     {
         if (!IsOwner || _playerSensor == null || _rb == null) return;
-        float targetNetworkRotationY = transform.localRotation.eulerAngles.y + _accumulateMouseX;
+        // Просто забираем чистый текущий угол обзора в сеть
+        float targetNetworkRotationY = _cameraRotationY;
         // Клиент-владелец собирает данные со своей клавиатуры
         MoveData md = new MoveData(
             MoveAction.ReadValue<Vector2>(),
@@ -235,8 +242,6 @@ public class PlayerController : NetworkBehaviour
         );
         // Сбрасываем флаг прыжка, так как мы его уже упаковали в этот тик
         _jumpWasPressed = false;
-        // Очищает мешок! Сеть забрала данные, копить их больше нельхя
-        _accumulateMouseX = 0f;
         // Вызываем репликацию (клиент выполнит локально, а пакет улетит на сервер)
         ReplicateMove(md);
     }
@@ -363,8 +368,8 @@ public class PlayerController : NetworkBehaviour
         _rb.linearVelocity = rd.LinearVelocity;
         // Считаем, на сколько градусов ошибся клиент
         float errorY = Mathf.DeltaAngle(rd.Rotation.eulerAngles.y, oldY);
-        // Корректируем глаза на эту ошибку, а не швыряем их в дефолт сервера!
-        _visualRotationY = transform.rotation.eulerAngles.y + errorY;
+        // Корректируем наш основной угол вращения
+        _cameraRotationY = transform.rotation.eulerAngles.y + errorY;
     }
     // Нажатие ctrl, камера визуально плавно опускается на клиенте
     private void HandleCrouch()
