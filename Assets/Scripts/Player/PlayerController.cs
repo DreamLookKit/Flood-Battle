@@ -50,7 +50,6 @@ public class PlayerController : NetworkBehaviour
     public InputAction CrouchAction { get; private set; }
     private Rigidbody _rb;
     private CapsuleCollider _capsuleCollider;    // Ссылка для изменения высоты тела
-    private BuoyantObject _buoyantScript;
     private PlayerSensor _playerSensor;     //  Локальная переменная-ссылка на сторонний скрпит PlayerSensor.cs
     // ОБЪЯВЛЕНИЕ: Создаем ячейки для хранения числовых ID.
     // readonly означает, что мы запишем туда число один раз и никто его случайно не изменит.
@@ -61,9 +60,9 @@ public class PlayerController : NetworkBehaviour
     private JumpState _currentJumpState = JumpState.Grounded;
     private float _speedForAnimator = 0f;
     private float _cameraRotationX = 0f;
-    private float _cameraRotationY = 0f;
+    private float _visualRotationY = 0f;
+    private float _accumulateMouseX = 0f;
     private float _defaultY = 0f;    // Стандартное положение камеры по оси Y
-    private float _timer = 0f;
     // Структура, в который клиент упаковывает все нажатия
     public struct MoveData : IReplicateData
     {
@@ -113,7 +112,6 @@ public class PlayerController : NetworkBehaviour
         _anim = GetComponentInChildren<Animator>();
         _rb = GetComponent<Rigidbody>();
         _capsuleCollider = GetComponent<CapsuleCollider>();      // Поиск нашего коллайдера
-        _buoyantScript = GetComponent<BuoyantObject>();          // Поиск плавучести
         // Создаем действие для обзора мышью
         LookAction = new InputAction("Look", binding: "<Mouse>/delta");
         // Мы создаем составной 2D-вектор для WASD
@@ -196,11 +194,12 @@ public class PlayerController : NetworkBehaviour
             Vector2 mouseDelta = LookAction.ReadValue<Vector2>() * (mouseSensivity * 30f) * Time.deltaTime;
             // Считаем углы автономно от физики transform-a!
             _cameraRotationX = Mathf.Clamp(_cameraRotationX - mouseDelta.y, -85, 85f);
-            _cameraRotationY += mouseDelta.x; // Копим поворот влево-вправо
-            // ВРАЩАЕМ ТОЛЬКО КАМЕРУ ПО ОБЕИМ ОСЯМ!
-            // Сама капсула игрока и её transform.forward сейчас СТОЯТ НА МЕСТЕ.
-            // Мы крутим только локальные углы внутри камеры, давая глазам 144 FPS.
-            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, _cameraRotationY, 0f);
+            // Копим чистый сдвиг мыши для сети(дельту)
+            _accumulateMouseX += mouseDelta.x;
+            // Копим абсолютный угол для визуала камеры
+            _visualRotationY += mouseDelta.x;
+            // Крутим камеру на 144 FPS для плавности обзора
+            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, _visualRotationY, 0f);
         }
         // Настраиваем положение камеры
         if (playerCamera != null)
@@ -221,19 +220,22 @@ public class PlayerController : NetworkBehaviour
     private void TimeManager_OnTick()
     {
         if (!IsOwner || _playerSensor == null || _rb == null) return;
+        float targetNetworkRotationY = transform.localRotation.eulerAngles.y + _accumulateMouseX;
         // Клиент-владелец собирает данные со своей клавиатуры
         MoveData md = new MoveData(
             MoveAction.ReadValue<Vector2>(),
             _jumpWasPressed,
             SprintAction.IsPressed(),
             CrouchAction.IsPressed(),
-            _cameraRotationY,
+            targetNetworkRotationY,
             _playerSensor.CurrentPlayerChest.Value,
             _playerSensor.CurrentPlayerLegs.Value,
             _playerSensor.CurrentPlayerBelowLegs.Value
         );
         // Сбрасываем флаг прыжка, так как мы его уже упаковали в этот тик
         _jumpWasPressed = false;
+        // Очищает мешок! Сеть забрала данные, копить их больше нельхя
+        _accumulateMouseX = 0f;
         // Вызываем репликацию (клиент выполнит локально, а пакет улетит на сервер)
         ReplicateMove(md);
     }
@@ -247,9 +249,6 @@ public class PlayerController : NetworkBehaviour
         PlayerSensor.PlayerState currentLegsState = _playerSensor.CheckLegsState();
         // Разворачиваем коллайдер
         transform.rotation = Quaternion.Euler(0f, md.RotationY, 0f);
-        if (IsOwner && playerCamera != null)
-            // Мы перенесли RotationY на капсулу, значит из локального вращения камеры его надо убрать
-            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, _cameraRotationY - md.RotationY, 0f);
         // Считаем текущую горизонтальную скорость тела игрока
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         float speed = horizontalVelocity.magnitude;
@@ -359,6 +358,9 @@ public class PlayerController : NetworkBehaviour
         transform.position = rd.Position;
         transform.rotation = rd.Rotation;
         _rb.linearVelocity = rd.LinearVelocity;
+        // ВЫТАСКИВАЕМ УГОЛ ИЗ КВАТЕРНИОНА:
+        // Мы просто берем Y из углов Эйлера серверного кватерниона и приравниваем к нему наши глаза
+        _visualRotationY = rd.Rotation.eulerAngles.y;
     }
     // Нажатие ctrl, камера визуально плавно опускается на клиенте
     private void HandleCrouch()
