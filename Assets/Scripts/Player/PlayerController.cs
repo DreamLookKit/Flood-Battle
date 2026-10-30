@@ -197,7 +197,7 @@ public class PlayerController : NetworkBehaviour
             // Копим чистый сдвиг мыши для сети(дельту)
             _accumulateMouseX += mouseDelta.x;
             // Крутим камеру на 144 FPS для плавности обзора
-            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, 0f, 0f);
+            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, _accumulateMouseX, 0f);
         }
         // 2. СГЛАЖИВАНИЕ МОДЕЛЬКИ (Чтобы ноги не дергались из-за тиков сети)
         if (_anim != null)
@@ -206,10 +206,16 @@ public class PlayerController : NetworkBehaviour
             float smoothedY = Mathf.LerpAngle(_anim.transform.localRotation.eulerAngles.y, 0f, 15f * Time.deltaTime);
             _anim.transform.localRotation = Quaternion.Euler(0f, smoothedY, 0f);
         }
-        // ПЕРЕДАЧА ПАРАМЕТРОВ В АНИМАТОР
-        if (playerCamera != null && _playerSensor != null)
-            if (_playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
+        // Работа с камерой
+        if (playerCamera != null)
+        {
+            // Если игрок на суше
+            if (_playerSensor != null && 
+                _playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
                 HandleCrouch();
+            // Коррекция высоты камеры
+            playerCamera.transform.localPosition = new Vector3(0f, _defaultY, 0f);
+        }  
     }
     // Синхронизация тиков по сети между клиентами
     private void TimeManager_OnTick()
