@@ -59,8 +59,8 @@ public class PlayerController : NetworkBehaviour
     private enum JumpState { Grounded, InNormalJump, InLongJump, LandingProcessed }
     private JumpState _currentJumpState = JumpState.Grounded;
     private float _speedForAnimator = 0f;
-    private float _cameraRotationX = 0f;
-    private float _cameraRotationY = 0f;
+    private float _localRotationX = 0f;
+    private float _localRotationY = 0f;
     private float _visualRotationY = 0f;
     private float _defaultY = 0f;    // Стандартное положение камеры по оси Y
     // Структура, в который клиент упаковывает все нажатия
@@ -199,11 +199,13 @@ public class PlayerController : NetworkBehaviour
             // Мы получаем изменение положения мыши для текущего кадра (30f - компенсация медленного движения мыши)
             Vector2 mouseDelta = LookAction.ReadValue<Vector2>() * (mouseSensivity * 30f) * Time.deltaTime;
             // Считаем углы автономно от физики transform-a!
-            _cameraRotationX = Mathf.Clamp(_cameraRotationX - mouseDelta.y, -85, 85f);
+            _localRotationX = Mathf.Clamp(_localRotationX - mouseDelta.y, -85, 85f);
             // Копим чистый сдвиг мыши для локальной камеры (дельту)
-            _cameraRotationY *= mouseDelta.x;
-            // Камера всегда плавная на 144+ FPS
-            playerCamera.transform.localRotation = Quaternion.Euler(_cameraRotationX, _cameraRotationY, 0f);
+            _localRotationY += mouseDelta.x;
+            // Поворот камеры по оси X
+            playerCamera.transform.localRotation = Quaternion.Euler(_localRotationX, 0f, 0f);
+            // Поворот тела по оси Y
+            transform.rotation = Quaternion.Euler(0f, _localRotationY, 0f);
         }
         // 2. СГЛАЖИВАНИЕ МОДЕЛЬКИ (Чтобы ноги не дергались из-за тиков сети)
         if (_anim != null)
@@ -227,15 +229,13 @@ public class PlayerController : NetworkBehaviour
     private void TimeManager_OnTick()
     {
         if (!IsOwner || _playerSensor == null || _rb == null) return;
-        // Просто забираем чистый текущий угол обзора в сеть
-        float targetNetworkRotationY = _cameraRotationY;
         // Клиент-владелец собирает данные со своей клавиатуры
         MoveData md = new MoveData(
             MoveAction.ReadValue<Vector2>(),
             _jumpWasPressed,
             SprintAction.IsPressed(),
             CrouchAction.IsPressed(),
-            targetNetworkRotationY,
+            transform.rotation.eulerAngles.y,
             _playerSensor.CurrentPlayerChest.Value,
             _playerSensor.CurrentPlayerLegs.Value,
             _playerSensor.CurrentPlayerBelowLegs.Value
@@ -249,12 +249,17 @@ public class PlayerController : NetworkBehaviour
     // Выполнение на локальном клиенте
     private void ReplicateMove(MoveData md, ReplicateState state = ReplicateState.Invalid, Channel channel = Channel.Unreliable)
     {
+        // --- А ТЕПЕРЬ СЕРВЕР ОБНОВЛЯЕТ SYNCVAR ДЛЯ ДРУГИХ ИГРОКОВ ---
+        if (IsServerInitialized && state == ReplicateState.Ticked)
+            _playerSensor.UpdateSyncVarsForAnimations();
+        if (_rb.isKinematic) return;
         // Мгновенно меняем высоту физического коллайдера на сервере и клиенте под текущий тик
         SetColliderHeightDirect(md.CrouchPressed);
         // Нам плевать, что прислал клиент в пакете md. Мы верим только физике движка прямо здесь и сейчас!
         PlayerSensor.PlayerState currentLegsState = _playerSensor.CheckLegsState();
-        // Разворачиваем коллайдер
-        transform.rotation = Quaternion.Euler(0f, md.RotationY, 0f);
+        // Разворачиваем тело, если происходит Rollback корректировка по требованию сервера
+        if (state == ReplicateState.Replayed)
+            transform.rotation = Quaternion.Euler(0f, md.RotationY, 0f);
         // Считаем текущую горизонтальную скорость тела игрока
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         float speed = horizontalVelocity.magnitude;
@@ -349,12 +354,7 @@ public class PlayerController : NetworkBehaviour
             _anim.SetBool(_IsCrouchedHash, md.CrouchPressed);
             if (IsOwner && _debugSpeedText != null)
                 _debugSpeedText.text = $"Real speed (Raw): {speed:F2}\nAnim speed (Smooth): {_speedForAnimator:F2}";
-            // Детекция приседа
         }        
-        // --- А ТЕПЕРЬ СЕРВЕР ОБНОВЛЯЕТ SYNCVAR ДЛЯ ДРУГИХ ИГРОКОВ ---
-        // state == ReplicateState.Current означает, что мы считаем НАСТОЯЩИЙ тик, а не пересчитываем историю (Rollback)
-        if (IsServerInitialized && state == ReplicateState.Ticked)
-            _playerSensor.UpdateSyncVarsForAnimations();
     }
     [Reconcile]
     // Метод проверки игрока: позиция, угол поворота, скорость
@@ -369,7 +369,7 @@ public class PlayerController : NetworkBehaviour
         // Считаем, на сколько градусов ошибся клиент
         float errorY = Mathf.DeltaAngle(rd.Rotation.eulerAngles.y, oldY);
         // Корректируем наш основной угол вращения
-        _cameraRotationY = transform.rotation.eulerAngles.y + errorY;
+        _localRotationY = transform.rotation.eulerAngles.y + errorY;
     }
     // Нажатие ctrl, камера визуально плавно опускается на клиенте
     private void HandleCrouch()
