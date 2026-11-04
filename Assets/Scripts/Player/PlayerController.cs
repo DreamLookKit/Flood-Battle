@@ -251,10 +251,10 @@ public class PlayerController : NetworkBehaviour
     // Выполнение на локальном клиенте
     private void ReplicateMove(MoveData md, ReplicateState state = ReplicateState.Invalid, Channel channel = Channel.Unreliable)
     {
-        // --- А ТЕПЕРЬ СЕРВЕР ОБНОВЛЯЕТ SYNCVAR ДЛЯ ДРУГИХ ИГРОКОВ ---
+        // Обновление анимации у всех игроков
         if (IsServerInitialized && state == ReplicateState.Ticked)
             _playerSensor.UpdateSyncVarsForAnimations();
-        if (!IsOwner && !IsServerInitialized) return;
+        if (!IsOwner && state == ReplicateState.Invalid) return;
         // Мгновенно меняем высоту физического коллайдера на сервере и клиенте под текущий тик
         SetColliderHeightDirect(md.CrouchPressed);
         // Нам плевать, что прислал клиент в пакете md. Мы верим только физике движка прямо здесь и сейчас!
