@@ -351,7 +351,7 @@ public class PlayerController : NetworkBehaviour
     }
     [Reconcile]
     // Метод проверки игрока: позиция, угол поворота, скорость
-    private void ReconcileMove(ReconcileData rd, Channel channel = Channel.Unreliable)
+    private void ReconcileMove(ReconcileData rd, bool asServer = false, Channel channel = Channel.Unreliable)
     {
         // Запоминаем старый поворот до отката
         float oldY = transform.rotation.eulerAngles.y;
@@ -396,6 +396,6 @@ public class PlayerController : NetworkBehaviour
         // Сервер упаковывает свои эталонные данные
         ReconcileData rd = new ReconcileData(transform.position, transform.rotation, _rb.linearVelocity);
         // И сразу же вызываем наш метод сверки
-        ReconcileMove(rd);
+        ReconcileMove(rd, true);
     }
 }
