@@ -240,7 +240,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584079872040860817
+  _initializedTimestamp: -8584077768971052128
 --- !u!114 &3785154631133482487
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -279,7 +279,7 @@ MonoBehaviour:
   _addedNetworkObject: {fileID: 2907166410746095809}
   _networkObjectCache: {fileID: 2907166410746095809}
   _componentConfiguration: 2
-  _synchronizeParent: 0
+  _synchronizeParent: 1
   _packing:
     Position: 1
     Rotation: 1

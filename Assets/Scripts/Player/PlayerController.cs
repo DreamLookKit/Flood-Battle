@@ -251,17 +251,18 @@ public class PlayerController : NetworkBehaviour
         );
         // Сбрасываем флаг прыжка, так как мы его уже упаковали в этот тик
         _jumpWasPressed = false;
+        // Отсекаем не владельцев и не серверов (так как у них нет Rigidbody и включенного кинематика)
         // Вызываем репликацию (клиент выполнит локально, а пакет улетит на сервер)
         ReplicateMove(md);
     }
     [Replicate]
-    // Выполнение на локальном клиенте
+    // Выполнение на клиенте И сервере
     private void ReplicateMove(MoveData md, ReplicateState state = ReplicateState.Invalid, Channel channel = Channel.Unreliable)
     {
         // Обновление анимации у всех игроков
         if (IsServerInitialized && state == ReplicateState.Ticked)
             _playerSensor.UpdateSyncVarsForAnimations();
-        if (!IsOwner && !IsServerInitialized) return;
+        if (!IsOwner && (!IsServerInitialized || state == ReplicateState.Invalid)) return;
         // Мгновенно меняем высоту физического коллайдера на сервере и клиенте под текущий тик
         SetColliderHeightDirect(md.CrouchPressed);
         // Нам плевать, что прислал клиент в пакете md. Мы верим только физике движка прямо здесь и сейчас!
