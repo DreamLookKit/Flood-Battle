@@ -147,20 +147,21 @@ public class PlayerController : NetworkBehaviour
         // Подписываем ВСЕХ (и сервер, и клиентов) на сетевые тики FishNet
         if (InstanceFinder.TimeManager != null)
             InstanceFinder.TimeManager.OnTick += TimeManager_OnTick;
-        if (!IsOwner && !IsServerInitialized)
+        // Если не владелец
+        if (!IsOwner)
         {
-            Debug.LogWarning($"Player ID {OwnerId}");
-            _rb.isKinematic = true;             // Включаем rigidbody другим игроков kinematic
-            _rb.useGravity = false;             // И отлючаем гравитацию
-            _capsuleCollider.isTrigger = true;  // А коллайдеру включаем триггер, чтобы чужие коллайдеры не толкали друг друга локально            
-            return;
+            // Выключаем камеру для НЕ владельцев
+            if (playerCamera != null) playerCamera.enabled = false;
+            // Выключаем уши для НЕ владельцев
+            AudioListener myListener = GetComponentInChildren<AudioListener>(true);
+            if (myListener != null) myListener.enabled = false;
+            // Если не сервер
+            if (!IsServerInitialized)
+            {
+                Debug.LogWarning($"Player ID {OwnerId} not are server&owner, return");
+                return;
+            }
         }
-        // Включаем рендеринг камеры для себя
-        if (playerCamera != null) playerCamera.enabled = true;
-        // Включаем уши для себя 
-        AudioListener myListener = GetComponentInChildren<AudioListener>(true);
-        if (myListener != null) myListener.enabled = true;
-        // Включаем импуты только если мы хозяева этого персонажа
         if (LookAction != null) LookAction.Enable();
         if (MoveAction != null) MoveAction.Enable();
         if (JumpAction != null) JumpAction.Enable();
@@ -253,7 +254,7 @@ public class PlayerController : NetworkBehaviour
         // --- А ТЕПЕРЬ СЕРВЕР ОБНОВЛЯЕТ SYNCVAR ДЛЯ ДРУГИХ ИГРОКОВ ---
         if (IsServerInitialized && state == ReplicateState.Ticked)
             _playerSensor.UpdateSyncVarsForAnimations();
-        if (_rb.isKinematic) return;
+        if (!IsOwner && !IsServerInitialized) return;
         // Мгновенно меняем высоту физического коллайдера на сервере и клиенте под текущий тик
         SetColliderHeightDirect(md.CrouchPressed);
         // Нам плевать, что прислал клиент в пакете md. Мы верим только физике движка прямо здесь и сейчас!
