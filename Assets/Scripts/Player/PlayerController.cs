@@ -148,20 +148,6 @@ public class PlayerController : NetworkBehaviour
         if (InstanceFinder.TimeManager != null)
             InstanceFinder.TimeManager.OnTick += TimeManager_OnTick;
         AudioListener myListener = GetComponentInChildren<AudioListener>(true);
-        // Если не владелец
-        if (!IsOwner)
-        {
-            // Выключаем камеру для НЕ владельцев
-            if (playerCamera != null) playerCamera.enabled = false;
-            // Выключаем уши для НЕ владельцев
-            if (myListener != null) myListener.enabled = false;
-            // Если не сервер
-            if (!IsServerInitialized)
-            {
-                Debug.LogWarning($"Player ID {OwnerId} not are server&owner, return");
-                return;
-            }
-        }
         if (IsOwner)
         {
             // Включаем камеру для владельца
@@ -237,7 +223,6 @@ public class PlayerController : NetworkBehaviour
     // Синхронизация тиков по сети между клиентами
     private void TimeManager_OnTick()
     {
-        if (!IsOwner || _playerSensor == null || _rb == null) return;
         // Клиент-владелец собирает данные со своей клавиатуры
         MoveData md = new MoveData(
             MoveAction.ReadValue<Vector2>(),
@@ -251,7 +236,6 @@ public class PlayerController : NetworkBehaviour
         );
         // Сбрасываем флаг прыжка, так как мы его уже упаковали в этот тик
         _jumpWasPressed = false;
-        // Отсекаем не владельцев и не серверов (так как у них нет Rigidbody и включенного кинематика)
         // Вызываем репликацию (клиент выполнит локально, а пакет улетит на сервер)
         ReplicateMove(md);
     }
@@ -262,14 +246,13 @@ public class PlayerController : NetworkBehaviour
         // Обновление анимации у всех игроков
         if (IsServerInitialized && state == ReplicateState.Ticked)
             _playerSensor.UpdateSyncVarsForAnimations();
-        if (!IsOwner && (!IsServerInitialized || state == ReplicateState.Invalid)) return;
+        //if (!IsOwner && !IsServerInitialized && state == ReplicateState.Invalid) return;
         // Мгновенно меняем высоту физического коллайдера на сервере и клиенте под текущий тик
         SetColliderHeightDirect(md.CrouchPressed);
         // Нам плевать, что прислал клиент в пакете md. Мы верим только физике движка прямо здесь и сейчас!
         PlayerSensor.PlayerState currentLegsState = _playerSensor.CheckLegsState();
-        // Разворачиваем тело, если происходит Rollback корректировка по требованию сервера
-        if (state == ReplicateState.Replayed)
-            transform.rotation = Quaternion.Euler(0f, md.RotationY, 0f);
+        // Разворачиваем тело
+        transform.rotation = Quaternion.Euler(0f, md.RotationY, 0f);
         // Считаем текущую горизонтальную скорость тела игрока
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         float speed = horizontalVelocity.magnitude;
