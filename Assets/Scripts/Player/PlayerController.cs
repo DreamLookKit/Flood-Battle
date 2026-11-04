@@ -147,8 +147,9 @@ public class PlayerController : NetworkBehaviour
         // Подписываем ВСЕХ (и сервер, и клиентов) на сетевые тики FishNet
         if (InstanceFinder.TimeManager != null)
             InstanceFinder.TimeManager.OnTick += TimeManager_OnTick;
-        if (!IsOwner)
+        if (!IsOwner && !IsServerInitialized)
         {
+            Debug.LogWarning($"Player ID {OwnerId}");
             _rb.isKinematic = true;             // Включаем rigidbody другим игроков kinematic
             _rb.useGravity = false;             // И отлючаем гравитацию
             _capsuleCollider.isTrigger = true;  // А коллайдеру включаем триггер, чтобы чужие коллайдеры не толкали друг друга локально            
