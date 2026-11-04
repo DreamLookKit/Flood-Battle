@@ -147,13 +147,13 @@ public class PlayerController : NetworkBehaviour
         // Подписываем ВСЕХ (и сервер, и клиентов) на сетевые тики FishNet
         if (InstanceFinder.TimeManager != null)
             InstanceFinder.TimeManager.OnTick += TimeManager_OnTick;
+        AudioListener myListener = GetComponentInChildren<AudioListener>(true);
         // Если не владелец
         if (!IsOwner)
         {
             // Выключаем камеру для НЕ владельцев
             if (playerCamera != null) playerCamera.enabled = false;
             // Выключаем уши для НЕ владельцев
-            AudioListener myListener = GetComponentInChildren<AudioListener>(true);
             if (myListener != null) myListener.enabled = false;
             // Если не сервер
             if (!IsServerInitialized)
@@ -161,6 +161,13 @@ public class PlayerController : NetworkBehaviour
                 Debug.LogWarning($"Player ID {OwnerId} not are server&owner, return");
                 return;
             }
+        }
+        if (IsOwner)
+        {
+            // Включаем камеру для владельца
+            if (playerCamera != null) playerCamera.enabled = true;
+            // Включаем уши для владельца
+            if (myListener != null) myListener.enabled = true;
         }
         if (LookAction != null) LookAction.Enable();
         if (MoveAction != null) MoveAction.Enable();
@@ -254,7 +261,7 @@ public class PlayerController : NetworkBehaviour
         // Обновление анимации у всех игроков
         if (IsServerInitialized && state == ReplicateState.Ticked)
             _playerSensor.UpdateSyncVarsForAnimations();
-        if (!IsOwner && state == ReplicateState.Invalid) return;
+        if (!IsOwner && !IsServerInitialized) return;
         // Мгновенно меняем высоту физического коллайдера на сервере и клиенте под текущий тик
         SetColliderHeightDirect(md.CrouchPressed);
         // Нам плевать, что прислал клиент в пакете md. Мы верим только физике движка прямо здесь и сейчас!
