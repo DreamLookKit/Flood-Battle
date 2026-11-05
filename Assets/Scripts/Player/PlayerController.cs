@@ -192,14 +192,17 @@ public class PlayerController : NetworkBehaviour
     // Графика и Логика (Привязана к FPS: 60, 100, 144 - неважно)
     private void Update()
     {
-        if (_anim != null)
+        if (!IsOwner)
         {
-            // Моделька плавно докручивается к углу взгляда, но ТОЛЬКО ПО ОСИ Y! Никаких Х!
-            //float smoothedY = Mathf.LerpAngle(targetNetworkRotationY, _anim.transform.rotation.eulerAngles.y,  Time.deltaTime);
-            float smoothedY = Mathf.LerpAngle(_anim.transform.rotation.eulerAngles.y, targetNetworkRotationY, Time.deltaTime);
-            _anim.transform.rotation = Quaternion.Euler(0f, smoothedY, 0f);
+            if (_anim != null)
+            {
+                // Моделька плавно докручивается к углу взгляда, но ТОЛЬКО ПО ОСИ Y! Никаких Х!
+                //float smoothedY = Mathf.LerpAngle(targetNetworkRotationY, _anim.transform.rotation.eulerAngles.y,  Time.deltaTime);
+                ////float smoothedY = Mathf.LerpAngle(_anim.transform.rotation.eulerAngles.y, targetNetworkRotationY, Time.deltaTime);
+                //_anim.transform.rotation = Quaternion.Euler(0f, smoothedY, 0f);
+                return;
+            }
         }
-        if (!IsOwner) return; //Только игрок может управлять персонажем
         // Поворот камеры мышью
         if (Mouse.current != null)
         {
@@ -218,8 +221,8 @@ public class PlayerController : NetworkBehaviour
         if (_anim != null)
         {
             // Моделька плавно докручивается к углу взгляда, но ТОЛЬКО ПО ОСИ Y! Никаких Х!
-            float smoothedY = Mathf.LerpAngle(_anim.transform.localRotation.eulerAngles.y, 0f, 15f * Time.deltaTime);
-            _anim.transform.localRotation = Quaternion.Euler(0f, smoothedY, 0f);
+            float smoothedY = Mathf.LerpAngle(_anim.transform.rotation.eulerAngles.y, _localRotationY, 15f * Time.deltaTime);
+            _anim.transform.rotation = Quaternion.Euler(0f, smoothedY, 0f);
         }
         // Работа с камерой
         if (playerCamera != null)
