@@ -64,9 +64,9 @@ public class PlayerController : NetworkBehaviour
     private enum JumpState { Grounded, InNormalJump, InLongJump, LandingProcessed }
     private JumpState _currentJumpState = JumpState.Grounded;
     private float _speedForAnimator;
-    private float _localRotationX;
+    private float _mouseRotationX;
     private float _localRotationY;
-    private float targetNetworkRotationY;
+    private float _rotationY;
     private float _defaultY;    // Стандартное положение камеры по оси Y
     // Структура, в который клиент упаковывает все нажатия
     public struct MoveData : IReplicateData
@@ -194,10 +194,10 @@ public class PlayerController : NetworkBehaviour
     {
         if (!IsOwner)
         {
-            if(_anim != null)
+            if (_anim != null)
             {
                 // Моделька плавно докручивается к углу взгляда, но ТОЛЬКО ПО ОСИ Y! Никаких Х!
-                float smoothedY = Mathf.LerpAngle(targetNetworkRotationY, _anim.transform.rotation.eulerAngles.y, Time.deltaTime);
+                float smoothedY = Mathf.LerpAngle(_rotationY, _anim.transform.rotation.eulerAngles.y, Time.deltaTime);
                 //float smoothedY = Mathf.LerpAngle(_anim.transform.rotation.eulerAngles.y, targetNetworkRotationY, Time.deltaTime);
                 _anim.transform.rotation = Quaternion.Euler(0f, smoothedY, 0f);
             }
@@ -208,11 +208,11 @@ public class PlayerController : NetworkBehaviour
             // Мы получаем изменение положения мыши для текущего кадра (30f - компенсация медленного движения мыши)
             Vector2 mouseDelta = LookAction.ReadValue<Vector2>() * (mouseSensivity * 30f) * Time.deltaTime;
             // Считаем углы автономно от физики transform-a!
-            _localRotationX = Mathf.Clamp(_localRotationX - mouseDelta.y, -85, 85f);
+            _mouseRotationX = Mathf.Clamp(_mouseRotationX - mouseDelta.y, -85, 85f);
             // Копим чистый сдвиг мыши для локальной камеры (дельту)
             _localRotationY += mouseDelta.x;
             // Поворот камеры по оси X
-            playerCamera.transform.localRotation = Quaternion.Euler(_localRotationX, 0f, 0f);
+            playerCamera.transform.localRotation = Quaternion.Euler(_mouseRotationX, 0f, 0f);
             // Поворот тела по оси Y
             transform.rotation = Quaternion.Euler(0f, _localRotationY, 0f);
         }
@@ -264,25 +264,14 @@ public class PlayerController : NetworkBehaviour
         // Обновление анимации у всех игроков
         if (IsServerInitialized && state == ReplicateState.Ticked)
             _playerSensor.UpdateSyncVarsForAnimations();
-        //if (!IsOwner && !IsServerInitialized && state == ReplicateState.Invalid) return;
         // Мгновенно меняем высоту физического коллайдера на сервере и клиенте под текущий тик
         SetColliderHeightDirect(md.CrouchPressed);
         // Нам плевать, что прислал клиент в пакете md. Мы верим только физике движка прямо здесь и сейчас!
         PlayerSensor.PlayerState currentLegsState = _playerSensor.CheckLegsState();
-        // TEST
         // Сохраняем поворот по оси Y для плавного поворота других префабов в Update
-        targetNetworkRotationY = md.RotationY;
+        _rotationY = md.RotationY;
         // Поворот тела в мировых координатов для корректного движения игрока
         transform.rotation = Quaternion.Euler(0f, md.RotationY, 0f);
-        // Видим текст разворота
-        if (oldLocalRotationY != md.RotationY && _debugSpeedText != null)
-            _debugSpeedText.text = $"Player: <color=yellow>{OwnerId}</color>\nTick: <color=red>{oldTick}</color> -> <color=green>{(int)md.GetTick()}" +
-                $"</color>\nRotation Y: <color=red>{oldLocalRotationY:F2}</color> -> <color=green>{md.RotationY:F2}</color>";
-        oldTick = (int)md.GetTick();
-        oldLocalRotationY = md.RotationY;
-        //
-        // Разворачиваем тело
-        //transform.rotation = Quaternion.Euler(0f, md.RotationY, 0f);
         // Считаем текущую горизонтальную скорость тела игрока
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         float speed = horizontalVelocity.magnitude;
@@ -341,9 +330,9 @@ public class PlayerController : NetworkBehaviour
         float targetVelocityX = Mathf.MoveTowards(_rb.linearVelocity.x, normalVelocity.x, currentRate * Time.fixedDeltaTime);
         float targetVelocityZ = Mathf.MoveTowards(_rb.linearVelocity.z, normalVelocity.z, currentRate * Time.fixedDeltaTime);
         // Применяем скорость нативно
-        if (currentLegsState == PlayerSensor.PlayerState.Water && !md.CrouchPressed)
-            // Если мы в воде и НЕ жмем Ctrl (погружение) — мы позволяем физике Архимеда свободно двигать игрока вверх/вниз!
-            // Мы перезаписываем ТОЛЬКО горизонтальную скорость X и Z, не трогая Y!
+        if (currentLegsState == PlayerSensor.PlayerState.Water && !md.CrouchPressed && !_rb.isKinematic)
+        // Если мы в воде и НЕ жмем Ctrl (погружение) — мы позволяем физике Архимеда свободно двигать игрока вверх/вниз!
+        // Мы перезаписываем ТОЛЬКО горизонтальную скорость X и Z, не трогая Y!
             _rb.linearVelocity = new Vector3(targetVelocityX, _rb.linearVelocity.y, targetVelocityZ);
         else
             // Если мы на суше ИЛИ насильно топим себя через Ctrl — применяем targetVelocityY как обычно
