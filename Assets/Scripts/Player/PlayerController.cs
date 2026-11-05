@@ -2,10 +2,13 @@ using FishNet;
 using FishNet.Object;
 using FishNet.Object.Prediction;
 using FishNet.Transporting;
-using UnityEngine;
-using UnityEngine.InputSystem;
+using System;
+using System.Runtime.CompilerServices;
 // TEST
 using TMPro;
+using Unity.VisualScripting;
+using UnityEngine;
+using UnityEngine.InputSystem;
 //
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(CapsuleCollider))]
@@ -39,6 +42,8 @@ public class PlayerController : NetworkBehaviour
     [SerializeField] private Camera playerCamera;
     // TEST
     private TMP_Text _debugSpeedText;
+    private int oldTick;
+    private float oldLocalRotationY;
     //
     // Все нажатия детектятся в Update, а действия происходят в FixedUpdate
     private bool _jumpWasPressed;  // Флаг-мостик между Update и FixedUpdate
@@ -58,11 +63,10 @@ public class PlayerController : NetworkBehaviour
     private static readonly int _IsCrouchedHash = Animator.StringToHash("IsCrouched");
     private enum JumpState { Grounded, InNormalJump, InLongJump, LandingProcessed }
     private JumpState _currentJumpState = JumpState.Grounded;
-    private float _speedForAnimator = 0f;
-    private float _localRotationX = 0f;
-    private float _localRotationY = 0f;
-    private float _visualRotationY = 0f;
-    private float _defaultY = 0f;    // Стандартное положение камеры по оси Y
+    private float _speedForAnimator;
+    private float _localRotationX;
+    private float _localRotationY;
+    private float _defaultY;    // Стандартное положение камеры по оси Y
     // Структура, в который клиент упаковывает все нажатия
     public struct MoveData : IReplicateData
     {
@@ -141,6 +145,7 @@ public class PlayerController : NetworkBehaviour
     {
         
     }
+    
     public override void OnStartClient()
     {
         base.OnStartClient();
@@ -149,7 +154,7 @@ public class PlayerController : NetworkBehaviour
             InstanceFinder.TimeManager.OnTick += TimeManager_OnTick;
         AudioListener myListener = GetComponentInChildren<AudioListener>(true);
         if (IsOwner)
-        {
+        {  
             // Включаем камеру для владельца
             if (playerCamera != null) playerCamera.enabled = true;
             // Включаем уши для владельца
@@ -176,7 +181,6 @@ public class PlayerController : NetworkBehaviour
         if (InstanceFinder.TimeManager != null)
             InstanceFinder.TimeManager.OnTick -= TimeManager_OnTick;
         // Выключаем и отписываемся при отключении
-        if (!IsOwner) return;
         LookAction.Disable();
         MoveAction.Disable();
         JumpAction.Disable();
@@ -220,6 +224,10 @@ public class PlayerController : NetworkBehaviour
             playerCamera.transform.localPosition = new Vector3(0f, _defaultY, 0f);
         }  
     }
+    private void ClientInfo(int tick, float oldY, float newY)
+    {
+        Debug.LogWarning($"<color=red> PLAYER</color> = {OwnerId}, Tick {tick}, Old Y Angle {oldY}, New Y Angle {newY}");
+    }
     // Синхронизация тиков по сети между клиентами
     private void TimeManager_OnTick()
     {
@@ -251,8 +259,19 @@ public class PlayerController : NetworkBehaviour
         SetColliderHeightDirect(md.CrouchPressed);
         // Нам плевать, что прислал клиент в пакете md. Мы верим только физике движка прямо здесь и сейчас!
         PlayerSensor.PlayerState currentLegsState = _playerSensor.CheckLegsState();
+        // TEST
+        // Плавно разворачиваем тело
+        float currentRotationY = Mathf.MoveTowards(oldLocalRotationY, md.RotationY, Time.fixedDeltaTime);
+        transform.rotation = Quaternion.Euler(0f, currentRotationY, 0f);
+        // Видим текст разворота
+        if (oldLocalRotationY != md.RotationY && _debugSpeedText != null)
+            _debugSpeedText.text = $"Player: <color=yellow>{OwnerId}</color>\nTick: <color=red>{oldTick}</color> -> <color=green>{(int)md.GetTick()}" +
+                $"</color>\nRotation Y: <color=red>{oldLocalRotationY:F2}</color> -> <color=green>{md.RotationY:F2}</color>";
+        oldTick = (int)md.GetTick();
+        oldLocalRotationY = md.RotationY;
+        //
         // Разворачиваем тело
-        transform.rotation = Quaternion.Euler(0f, md.RotationY, 0f);
+        //transform.rotation = Quaternion.Euler(0f, md.RotationY, 0f);
         // Считаем текущую горизонтальную скорость тела игрока
         Vector3 horizontalVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
         float speed = horizontalVelocity.magnitude;
@@ -345,13 +364,13 @@ public class PlayerController : NetworkBehaviour
             _anim.SetFloat(_SpeedHash, _speedForAnimator, 0.05f, Time.fixedDeltaTime);
             // Передаем положение стоит/присяд
             _anim.SetBool(_IsCrouchedHash, md.CrouchPressed);
-            if (IsOwner && _debugSpeedText != null)
-                _debugSpeedText.text = $"Real speed (Raw): {speed:F2}\nAnim speed (Smooth): {_speedForAnimator:F2}";
+            //if (IsOwner && _debugSpeedText != null)
+            //    _debugSpeedText.text = $"Real speed (Raw): {speed:F2}\nAnim speed (Smooth): {_speedForAnimator:F2}";
         }        
     }
     [Reconcile]
     // Метод проверки игрока: позиция, угол поворота, скорость
-    private void ReconcileMove(ReconcileData rd, bool asServer = false, Channel channel = Channel.Unreliable)
+    private void ReconcileMove(ReconcileData rd, Channel channel = Channel.Unreliable)
     {
         // Запоминаем старый поворот до отката
         float oldY = transform.rotation.eulerAngles.y;
@@ -396,6 +415,6 @@ public class PlayerController : NetworkBehaviour
         // Сервер упаковывает свои эталонные данные
         ReconcileData rd = new ReconcileData(transform.position, transform.rotation, _rb.linearVelocity);
         // И сразу же вызываем наш метод сверки
-        ReconcileMove(rd, true);
+        ReconcileMove(rd);
     }
 }

@@ -228,7 +228,6 @@ MonoBehaviour:
   - {fileID: -6055492577290771859}
   - {fileID: 4414167849872062874}
   - {fileID: 3785154631133482487}
-  - {fileID: 0}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
   RuntimeParentNetworkBehaviour: {fileID: 0}
@@ -239,7 +238,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584077765016984311
+  _initializedTimestamp: -8584077700626752144
 --- !u!114 &3785154631133482487
 MonoBehaviour:
   m_ObjectHideFlags: 0
