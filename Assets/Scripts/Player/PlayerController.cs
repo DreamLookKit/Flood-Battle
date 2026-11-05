@@ -66,6 +66,7 @@ public class PlayerController : NetworkBehaviour
     private float _speedForAnimator;
     private float _localRotationX;
     private float _localRotationY;
+    private float targetNetworkRotationY;
     private float _defaultY;    // Стандартное положение камеры по оси Y
     // Структура, в который клиент упаковывает все нажатия
     public struct MoveData : IReplicateData
@@ -191,6 +192,13 @@ public class PlayerController : NetworkBehaviour
     // Графика и Логика (Привязана к FPS: 60, 100, 144 - неважно)
     private void Update()
     {
+        if (!IsOwner && _anim != null)
+        {
+            // Моделька плавно докручивается к углу взгляда, но ТОЛЬКО ПО ОСИ Y! Никаких Х!
+            //float smoothedY = Mathf.LerpAngle(targetNetworkRotationY, _anim.transform.rotation.eulerAngles.y,  Time.deltaTime);
+            float smoothedY = Mathf.LerpAngle(_anim.transform.rotation.eulerAngles.y, targetNetworkRotationY, Time.deltaTime);
+            _anim.transform.rotation = Quaternion.Euler(0f, smoothedY, 0f);
+        }
         if (!IsOwner) return; //Только игрок может управлять персонажем
         // Поворот камеры мышью
         if (Mouse.current != null)
@@ -260,9 +268,10 @@ public class PlayerController : NetworkBehaviour
         // Нам плевать, что прислал клиент в пакете md. Мы верим только физике движка прямо здесь и сейчас!
         PlayerSensor.PlayerState currentLegsState = _playerSensor.CheckLegsState();
         // TEST
-        // Плавно разворачиваем тело
-        float currentRotationY = Mathf.MoveTowards(oldLocalRotationY, md.RotationY, Time.fixedDeltaTime);
-        transform.rotation = Quaternion.Euler(0f, currentRotationY, 0f);
+        // Сохраняем поворот по оси Y для плавного поворота других префабов в Update
+        targetNetworkRotationY = md.RotationY;
+        // Поворот тела в мировых координатов для корректного движения игрока
+        transform.rotation = Quaternion.Euler(0f, md.RotationY, 0f);
         // Видим текст разворота
         if (oldLocalRotationY != md.RotationY && _debugSpeedText != null)
             _debugSpeedText.text = $"Player: <color=yellow>{OwnerId}</color>\nTick: <color=red>{oldTick}</color> -> <color=green>{(int)md.GetTick()}" +
