@@ -194,16 +194,15 @@ public class PlayerController : NetworkBehaviour
     {
         if (!IsOwner)
         {
-            if (_anim != null)
+            if(_anim != null)
             {
                 // Моделька плавно докручивается к углу взгляда, но ТОЛЬКО ПО ОСИ Y! Никаких Х!
-                //float smoothedY = Mathf.LerpAngle(targetNetworkRotationY, _anim.transform.rotation.eulerAngles.y,  Time.deltaTime);
-                ////float smoothedY = Mathf.LerpAngle(_anim.transform.rotation.eulerAngles.y, targetNetworkRotationY, Time.deltaTime);
-                //_anim.transform.rotation = Quaternion.Euler(0f, smoothedY, 0f);
-                return;
+                float smoothedY = Mathf.LerpAngle(targetNetworkRotationY, _anim.transform.rotation.eulerAngles.y, Time.deltaTime);
+                //float smoothedY = Mathf.LerpAngle(_anim.transform.rotation.eulerAngles.y, targetNetworkRotationY, Time.deltaTime);
+                _anim.transform.rotation = Quaternion.Euler(0f, smoothedY, 0f);
             }
+            return;
         }
-        // Поворот камеры мышью
         if (Mouse.current != null)
         {
             // Мы получаем изменение положения мыши для текущего кадра (30f - компенсация медленного движения мыши)
@@ -215,25 +214,25 @@ public class PlayerController : NetworkBehaviour
             // Поворот камеры по оси X
             playerCamera.transform.localRotation = Quaternion.Euler(_localRotationX, 0f, 0f);
             // Поворот тела по оси Y
-            //transform.rotation = Quaternion.Euler(0f, _localRotationY, 0f);
+            transform.rotation = Quaternion.Euler(0f, _localRotationY, 0f);
         }
         // 2. СГЛАЖИВАНИЕ МОДЕЛЬКИ (Чтобы ноги не дергались из-за тиков сети)
         if (_anim != null)
         {
             // Моделька плавно докручивается к углу взгляда, но ТОЛЬКО ПО ОСИ Y! Никаких Х!
-            float smoothedY = Mathf.LerpAngle(_anim.transform.rotation.eulerAngles.y, _localRotationY, 15f * Time.deltaTime);
-            _anim.transform.rotation = Quaternion.Euler(0f, smoothedY, 0f);
+            float smoothedY = Mathf.LerpAngle(_anim.transform.localRotation.eulerAngles.y, 0f, 15f * Time.deltaTime);
+            _anim.transform.localRotation = Quaternion.Euler(0f, smoothedY, 0f);
         }
         // Работа с камерой
         if (playerCamera != null)
         {
             // Если игрок на суше
-            if (_playerSensor != null && 
+            if (_playerSensor != null &&
                 _playerSensor.CurrentPlayerLegs.Value != PlayerSensor.PlayerState.Water)
                 HandleCrouch();
             // Коррекция высоты камеры
             playerCamera.transform.localPosition = new Vector3(0f, _defaultY, 0f);
-        }  
+        }
     }
     private void ClientInfo(int tick, float oldY, float newY)
     {
