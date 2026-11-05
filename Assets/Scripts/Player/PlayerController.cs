@@ -192,7 +192,7 @@ public class PlayerController : NetworkBehaviour
     // Графика и Логика (Привязана к FPS: 60, 100, 144 - неважно)
     private void Update()
     {
-        if (!IsOwner && _anim != null)
+        if (_anim != null)
         {
             // Моделька плавно докручивается к углу взгляда, но ТОЛЬКО ПО ОСИ Y! Никаких Х!
             //float smoothedY = Mathf.LerpAngle(targetNetworkRotationY, _anim.transform.rotation.eulerAngles.y,  Time.deltaTime);
@@ -212,7 +212,7 @@ public class PlayerController : NetworkBehaviour
             // Поворот камеры по оси X
             playerCamera.transform.localRotation = Quaternion.Euler(_localRotationX, 0f, 0f);
             // Поворот тела по оси Y
-            transform.rotation = Quaternion.Euler(0f, _localRotationY, 0f);
+            //transform.rotation = Quaternion.Euler(0f, _localRotationY, 0f);
         }
         // 2. СГЛАЖИВАНИЕ МОДЕЛЬКИ (Чтобы ноги не дергались из-за тиков сети)
         if (_anim != null)
@@ -245,7 +245,7 @@ public class PlayerController : NetworkBehaviour
             _jumpWasPressed,
             SprintAction.IsPressed(),
             CrouchAction.IsPressed(),
-            transform.rotation.eulerAngles.y,
+            _localRotationY,
             _playerSensor.CurrentPlayerChest.Value,
             _playerSensor.CurrentPlayerLegs.Value,
             _playerSensor.CurrentPlayerBelowLegs.Value
@@ -381,16 +381,12 @@ public class PlayerController : NetworkBehaviour
     // Метод проверки игрока: позиция, угол поворота, скорость
     private void ReconcileMove(ReconcileData rd, Channel channel = Channel.Unreliable)
     {
-        // Запоминаем старый поворот до отката
-        float oldY = transform.rotation.eulerAngles.y;
         // Принудительная перезапись данных клиента данными от сервера (rd)
         transform.position = rd.Position;
         transform.rotation = rd.Rotation;
         _rb.linearVelocity = rd.LinearVelocity;
-        // Считаем, на сколько градусов ошибся клиент
-        float errorY = Mathf.DeltaAngle(rd.Rotation.eulerAngles.y, oldY);
-        // Корректируем наш основной угол вращения
-        _localRotationY = transform.rotation.eulerAngles.y + errorY;
+        // берем угол Y через эйлера
+        _localRotationY = rd.Rotation.eulerAngles.y;
     }
     // Нажатие ctrl, камера визуально плавно опускается на клиенте
     private void HandleCrouch()
